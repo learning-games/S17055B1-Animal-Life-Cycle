@@ -1,0 +1,4172 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>นักเดินทางแห่งระบบสุริยะ</title>
+
+<style>
+/* =========================
+   ฟอนต์/ธีมพื้นฐาน
+   ========================= */
+@font-face{
+  font-family: 'MyGameFont';
+  src: url('image/THSarabunNew.woff2') format('woff2'),
+       url('image/THSarabunNew.woff') format('woff'),
+       url('image/THSarabunNew.ttf') format('truetype');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face{
+  font-family: 'MyGameFont';
+  src: url('image/THSarabunNewBold.woff2') format('woff2'),
+       url('image/THSarabunNewBold.woff') format('woff'),
+       url('image/THSarabunNewBold.ttf') format('truetype');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+html, body, button, input, select, textarea {
+  font-family: 'MyGameFont', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+}
+:root{
+  --glass: rgba(0,0,0,.45);
+  --ok:#10b981; --bad:#ef4444;
+
+  /* ปรับตำแหน่ง/ขนาดวงกลมตัวเลือก 3 ปุ่มด้านบน */
+  --opt-top: 10vh;                 /* ระยะจากบน (แถวปุ่ม) */
+  --opt-size: clamp(80px, 19vw, 280px);
+  --opt-gap: 18vw;   /* ช่องว่างคงที่กว้างมาก */
+
+  /* ปรับข้อความคำถามด้านล่าง */
+  --q-bottom: 9vh;                 /* ระยะจากล่าง */
+  --q-font: clamp(50px, 10vw, 96px);
+  --q-slide-ms: 750ms;             /* เวลา slide ข้อความเข้า */
+  --q-offset-x: 22vw;              /* ระยะเริ่มเลื่อนนอกจอ (แนวนอน) */
+
+  --hud-top: 14px;
+  --safe-top: env(safe-area-inset-top,0px);
+}
+
+/* พื้นหลัง */
+html,body{ height:100%; margin:0 }
+body{
+  background:url("image/background2.png") center/cover no-repeat fixed;
+  overflow:hidden; color:#fff;
+}
+
+/* 🔥 ด่าน 4 ใช้พื้นหลังใหม่ (เฉพาะโหมดปกติ) */
+body.level4-mode:not(.camera-on){
+  background:url("image/background3.png") center/cover no-repeat fixed !important;
+}
+
+#game{ position:relative; width:100vw; height:100vh; overflow:hidden }
+
+/* =========================
+   HUD + นาฬิกา + คะแนน
+   ========================= */
+.hud{
+  position:fixed;
+  inset: calc(var(--safe-top) + var(--hud-top)) 5px auto 38px !important;
+  display:flex; align-items:center; gap:12px; justify-content:space-between;
+  pointer-events:none; z-index:40000;
+}
+body:not(.in-game):not(.prestart) .hud { display:none !important; }
+
+#clock.clock-pill{
+  position:fixed; top:14px; left:50%; transform:translateX(-50%);
+  z-index:16000; pointer-events:none;
+  --clock-size: 40px; font-size:var(--clock-size);
+  background:var(--glass); backdrop-filter:blur(6px); color:#fff;
+  font-weight:1000; line-height:1; border-radius:999px; padding:8px 16px;
+  box-shadow:0 4px 18px rgba(0,0,0,.25); text-shadow:0 3px 10px rgba(0,0,0,.55);
+}
+.pill{ background:var(--glass); backdrop-filter:blur(6px); padding:8px 12px; border-radius:999px; box-shadow:0 4px 18px rgba(0,0,0,.25) }
+.btn-mini{ pointer-events:auto; background:#1f2937; color:#fff; border:none; border-radius:12px; padding:8px 12px; font-weight:800; cursor:pointer; box-shadow:0 4px 18px rgba(0,0,0,.25) }
+.score-label{ 
+font-size:18px; 
+font-weight:900; 
+opacity:.95; margin:2px 0 4px; text-align:right }
+
+/* ===== Hover Effect ปุ่ม HUD ซ้าย (เมนู / หยุด / กล้อง) ===== */
+.hud .btn-mini{
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  will-change: transform;
+}
+
+.hud .btn-mini:hover{
+  transform: scale(1.15); /* 👈 เพิ่มจาก 1.06 → 1.15 */
+  box-shadow: 
+    0 0 10px rgba(255,255,255,.25),   /* 👈 เพิ่ม glow */
+    0 14px 36px rgba(0,0,0,.55);      /* 👈 เงาเข้มขึ้น */
+}
+
+.hud .btn-mini:active{
+  transform: scale(0.9); /* 👈 กดยุบชัดขึ้น */
+}
+
+
+/* ===== Hover Effect ปุ่ม Mute / Fullscreen ===== */
+#muteBtn, #fsBtn{
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  will-change: transform;
+}
+
+#muteBtn:hover, #fsBtn:hover{
+  transform: scale(1.25); /* 👈 จาก 1.1 → 1.25 (เห็นชัดมาก) */
+  box-shadow: 
+    0 0 12px rgba(255,255,255,.3),
+    0 14px 36px rgba(0,0,0,.55);
+}
+
+#muteBtn:active, #fsBtn:active{
+  transform: scale(0.85);
+}
+
+
+/* ปรับตำแหน่งคำว่า "คะแนน" */
+.score-label{
+  margin-right:16px;  /* เลื่อนออกจากกล่องทอง */
+  margin-top:-6px;    /* เลื่อนขึ้นเล็กน้อย */
+}
+
+
+.pill.gold{
+  --score-size: 46px; 
+border-radius: 12px; 
+padding:6px 8px; min-width: 
+calc(var(--score-size)*1.6);
+}
+.pill.gold .num{ 
+font-size:var(--score-size); 
+font-weight:1000; 
+letter-spacing:.5px 
+}
+
+/* จัดกึ่งกลางตัวเลขในกล่องทอง */
+.pill.gold{
+  display:flex;
+  justify-content:center;  /* กึ่งกลางแนวนอน */
+  align-items:center;      /* กึ่งกลางแนวตั้ง */
+  text-align:center;
+}
+.pill.gold .num{
+  display:block;
+  width:100%;
+}
+
+
+/* ย้ายปุ่ม HUD ไปมุมซ้าย/ขวาแน่นอน */
+.hud { position: initial !important; inset:auto !important; }
+.hud .left, .hud .right{
+  position:fixed !important; top:var(--hud-top) !important; z-index:50000; pointer-events:none;
+}
+.hud .left { left: 16px !important; }
+.hud .right{ right:16px !important; }
+.hud .btn-mini{ pointer-events:auto }
+
+/* =========================
+   Welcome / Landing
+   ========================= */
+#welcome{
+  position:fixed;
+  inset:0;
+  background:url("image/welcomepage.png") center/cover no-repeat fixed;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:clamp(10px, 2vh, 24px);
+  padding:clamp(12px, 3vh, 32px) 16px;
+  box-sizing:border-box;
+  z-index:25000;
+  transition:opacity .3s ease;
+  overflow:hidden;
+}
+#welcome.hide{ opacity:0; pointer-events:none; visibility:hidden }
+
+#welcome .brand{
+  width:min(92vw, 1100px);
+  max-height:calc(100dvh - 140px);
+  margin-bottom:clamp(12px, 6vh, 100px);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  flex:0 1 auto;
+}
+#welcome .brand img{
+  width:100%;
+  max-width:100%;
+  max-height:min(58dvh, 620px);
+  height:auto;
+  display:block;
+  object-fit:contain;
+  filter:drop-shadow(0 6px 18px rgba(0,0,0,.45));
+  animation:pulse 3s infinite ease-in-out;
+}
+
+#welcome #enterBtn{
+  flex:0 0 auto;
+  max-width:min(92vw, 420px);
+  padding:clamp(10px, 1.6vh, 12px) clamp(20px, 3vw, 28px);
+  font-size:clamp(20px, 3.2vw, 36px);
+  font-weight:1000;
+  border-radius:18px;
+
+  color:#fff;
+
+  /* 🌿 ธีมเขียวธรรมชาติ */
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.18), rgba(0,0,0,.10)),
+    linear-gradient(135deg, #65a30d 0%, #16a34a 50%, #166534 100%);
+
+  border:2px solid rgba(255, 240, 180, .55);
+
+  /* ปรับ contrast ตัวหนังสือ */
+  text-shadow:
+    0 2px 6px rgba(0,0,0,.55),
+    0 0 14px rgba(190, 250, 160, .35);
+
+  box-shadow:
+    inset 0 2px 8px rgba(255,255,255,.30),
+    inset 0 -4px 10px rgba(0,0,0,.30),
+    0 0 18px rgba(132, 204, 22, .35),
+    0 12px 32px rgba(0,0,0,.4);
+
+  cursor:pointer;
+  white-space:nowrap;
+}
+
+@keyframes pulse{ 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+
+#landing{
+  position:fixed;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  gap:clamp(10px, 2vh, 22px);
+  align-items:center;
+  justify-content:center;
+  padding:clamp(12px, 3vh, 32px) 16px;
+  box-sizing:border-box;
+  overflow:hidden;
+  background:url("image/welcomepage.png") center/cover no-repeat fixed;
+  z-index:20000;
+  transition:opacity .3s ease;
+}
+
+#landing.hide{ opacity:0; pointer-events:none; visibility:hidden }
+#landing .brand{
+  width:min(92vw, 1100px);
+  max-height:min(42dvh, 360px);
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  flex:0 1 auto;
+}
+#landing .brand img{
+  width:100%;
+  max-width:100%;
+  max-height:100%;
+  height:auto;
+  display:block;
+  object-fit:contain;
+  filter:drop-shadow(0 10px 30px rgba(0,0,0,.6));
+}
+.level-menu{
+  display:flex;
+  flex-direction:column;
+  gap:clamp(8px, 1.5vh, 14px);
+  width:min(92vw, 640px);
+  max-height:min(48dvh, 420px);
+  flex:0 1 auto;
+}
+
+.levelBtn{
+  width:100%;
+  min-height:clamp(48px, 7vh, 80px);
+  padding:clamp(12px, 2.2vh, 18px) clamp(16px, 2vw, 20px);
+  font-size:clamp(20px, 3.2vw, 34px);
+  font-weight:1000;
+  line-height:1.2;
+  border-radius:18px;
+
+  color:#fff;
+
+  /* 🌿 ธีมเขียวธรรมชาติ */
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.20), rgba(0,0,0,.10)),
+    linear-gradient(135deg, #84cc16 0%, #22c55e 50%, #15803d 100%);
+
+  border:2px solid rgba(255, 240, 180, .50);
+
+  /* กันตัวหนังสือจม */
+  text-shadow:
+    0 2px 6px rgba(0,0,0,.55),
+    0 0 12px rgba(190, 250, 160, .30);
+
+  box-shadow:
+    inset 0 2px 8px rgba(255,255,255,.25),
+    inset 0 -4px 10px rgba(0,0,0,.25),
+    0 0 14px rgba(132, 204, 22, .25),
+    0 10px 28px rgba(0,0,0,.35);
+
+  cursor:pointer;
+  text-align:center;
+}
+/* ===== Hover Effect ปุ่มเลือกด่าน ===== */
+.levelBtn{
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.levelBtn:hover{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.30), rgba(0,0,0,.05)),
+    linear-gradient(135deg, #a3e635 0%, #4ade80 50%, #16a34a 100%);
+  border-color: rgba(255, 240, 180, .85);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow:
+    inset 0 2px 8px rgba(255,255,255,.4),
+    inset 0 -4px 10px rgba(0,0,0,.25),
+    0 0 22px rgba(190, 250, 100, .50),
+    0 14px 36px rgba(0,0,0,.45);
+}
+
+.levelBtn:active{
+  transform: scale(0.96);
+}
+
+/* =========================
+   หน้าสตาร์ท / นับถอยหลัง
+   ========================= */
+#startScreen{ position:fixed; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; background:#000; z-index:30000; text-align:center; padding:24px }
+#startTitle{ font-size:clamp(26px,5vw,48px); font-weight:900; margin-bottom:10px }
+
+#startBtn{
+  margin-top:18px;
+  padding:16px 36px;               /* 👈 ปุ่มใหญ่ขึ้นชัดเจน */
+  font-size:clamp(22px, 4vw, 42px);
+  border:2px solid rgba(255, 240, 180, .55);
+  border-radius:18px;
+  font-weight:1000;
+  cursor:pointer;
+
+  /* 🌿 ธีมเขียวธรรมชาติ */
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.22), rgba(0,0,0,.08)),
+    linear-gradient(135deg, #84cc16 0%, #22c55e 50%, #15803d 100%);
+  color:#fff;
+
+  text-shadow:
+    0 2px 6px rgba(0,0,0,.55),
+    0 0 14px rgba(190, 250, 160, .35);
+
+  box-shadow:
+    inset 0 2px 10px rgba(255,255,255,.30),
+    inset 0 -4px 12px rgba(0,0,0,.30),
+    0 0 22px rgba(132, 204, 22, .40),
+    0 14px 34px rgba(0,0,0,.4);
+}
+
+/* ===== Hover Effect ปุ่มเริ่ม ===== */
+#startBtn{
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  will-change: transform;
+}
+
+#startBtn:hover{
+  transform: scale(1.18);   /* 👈 เด้งชัด */
+  border-color: rgba(255, 240, 180, .9);
+  box-shadow:
+    inset 0 2px 10px rgba(255,255,255,.45),
+    inset 0 -4px 12px rgba(0,0,0,.25),
+    0 0 36px rgba(190, 250, 100, .65),
+    0 20px 46px rgba(0,0,0,.6);
+}
+
+#startBtn:active{
+  transform: scale(0.92);   /* 👈 กดยุบชัด */
+}
+
+#countdown{ display:none; font-size:clamp(56px,12vw,120px); font-weight:1000; line-height:1; margin-top:8px }
+
+/* =========================
+   โครงสร้างคำถาม/คำตอบแบบใหม่
+   ========================= */
+/* แถวปุ่ม 3 วงกลมด้านบน */
+#choicesRow{
+  position:fixed; left:50%; transform:translateX(-50%);
+  top:var(--opt-top); display:flex; gap:var(--opt-gap);
+  z-index:12000; pointer-events:auto;
+}
+
+.option.circle{
+  width:var(--opt-size); height:var(--opt-size);
+  border-radius:50%;
+  /* เพิ่มเส้นขอบเข้มกว่าสีหลักเล็กน้อย */
+  border:10px solid rgba(0,0,0,0.25);
+  background:
+    radial-gradient(35% 35% at 30% 30%, rgba(255,255,255,.18), rgba(255,255,255,0) 60%) padding-box,
+    var(--ring, linear-gradient(130deg,#999,#666)) border-box;
+  box-shadow:0 8px 28px rgba(0,0,0,.35);
+  display:grid; place-items:center; cursor:pointer; user-select:none;
+  overflow:hidden;
+}
+
+.option.circle img{ width:90%; height:90%; object-fit:contain; filter:drop-shadow(0 6px 14px rgba(0,0,0,.45)) }
+
+/* เข้า: slide-in จากด้านบนทีละปุ่ม */
+.option.circle.pre-in{ opacity:0; transform:translateY(-40px); }
+.option.circle.go-in{ opacity:1; transform:translateY(0); transition: transform 600ms cubic-bezier(.2,.9,.2,1), opacity 600ms; }
+
+/* กล่องครอบตัวเลือก 1 ชิ้น (รูปวงกลม + แคปชันด้านล่าง) */
+.option-wrap{
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+  gap:8px;
+  position:relative;
+}
+
+/* แคปชันใต้รูป – ปรับได้ด้วยตัวแปร */
+.option-wrap .opt-cap{
+  font-size: var(--cap-font, clamp(16px, 2.8vw, 24px));
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.1;
+  text-align: center;
+  text-shadow: 0 2px 6px rgba(0,0,0,.6);
+  transform: translateY(var(--cap-offset-y, 0px));
+  max-width: min(22vw, 260px);
+  white-space: normal;
+}
+
+body.level2-mode .option-wrap .opt-cap{
+  display:none !important;
+}
+
+/* ออก: ปุ่มถูกเลือก → ขยายแล้วหดจนหาย */
+.option.circle.pick-pop{ animation: pickPop 620ms ease forwards; }
+@keyframes pickPop{ 0%{transform:scale(1)} 45%{transform:scale(1.15)} 100%{transform:scale(.2); opacity:0} }
+
+/* ออก: ปุ่มไม่ได้เลือก → slide-out ขึ้นด้านบน */
+.option.circle.slide-up-out{ animation: slideUpOut 560ms ease forwards; }
+@keyframes slideUpOut{ to{ transform:translateY(-60px); opacity:0 } }
+/* ให้ทั้งกล่องคำตอบ (วงกลม+แคปชัน) เป็นตัวอนิเมต */
+.option-wrap{ will-change: transform, opacity; }
+
+/* ถูกเลือก = ป๊อปขึ้นนิดนึงแล้วยุบจางหาย (วง+แคปชันพร้อมกัน) */
+.option-wrap.is-chosen .option.circle{ animation: circlePop .52s cubic-bezier(.2,.9,.2,1) forwards; }
+.option-wrap.is-chosen .opt-cap     { animation: capFadeUp .52s ease forwards; }
+
+/* ไม่ถูกเลือก = เฟดขึ้นเบา ๆ แล้วหาย (วง+แคปชันพร้อมกัน) */
+.option-wrap.is-faded  .option.circle{ animation: circleFadeUp .42s ease forwards; }
+.option-wrap.is-faded  .opt-cap      { animation: capFadeUp .42s ease forwards; }
+
+/* คีย์เฟรมที่ใช้ */
+@keyframes circlePop{
+  0%{ transform:scale(1); opacity:1 }
+  35%{ transform:scale(1.12) }
+  100%{ transform:scale(.85); opacity:0 }
+}
+@keyframes circleFadeUp{ to{ transform:translateY(-20px); opacity:0 } }
+@keyframes capFadeUp{   to{ transform:translateY(-24px); opacity:0 } }
+/* จบรอบ: ย่อทั้งกล่องแล้วค่อยหาย (กันชนกับสถานะอื่นๆ) */
+.option-wrap.is-vanish{
+  animation: wrapShrinkOut var(--vanish-ms, 420ms) ease forwards;
+}
+.option-wrap.is-vanish .option.circle{
+  animation: circleShrinkOut var(--vanish-ms, 420ms) ease forwards;
+}
+.option-wrap.is-vanish .opt-cap{
+  animation: capFadeUp var(--vanish-ms, 420ms) ease forwards;
+}
+
+@keyframes wrapShrinkOut{
+  to{ transform: scale(.88); opacity:.0; }
+}
+@keyframes circleShrinkOut{
+  to{ transform: scale(.82); opacity:0; }
+}
+
+
+/* แคปชันหายตามวง (capFadeUp ถูก define แล้วด้านบน) */
+.option-wrap.faded .opt-cap{ animation: capFadeUp 560ms ease forwards; }
+.option-wrap.chosen .opt-cap{ animation: capFadeUp 620ms ease forwards; }
+
+/* กล่องคำถามด้านล่าง: สไลด์แนวนอนเข้ามา */
+/* กล่องคำถามด้านล่าง: วิ่งแนวนอนจากขวา -> ซ้าย */
+#questionBox{
+  position:fixed;
+  left:0; right:0; bottom:var(--q-bottom);
+  width:100vw; overflow:hidden; pointer-events:none;
+  z-index:11000;
+  text-align:left; /* ไม่บังคับกลาง เพราะเราจะเลื่อนเอง */
+  white-space:nowrap;
+  /* ขนาดตัวหนังสือยังคงใช้ตัวแปรเดิม */
+  font-size:var(--q-font); font-weight:1000;
+  text-shadow:0 4px 12px rgba(0,0,0,.8);
+}
+
+#questionBox .mq{
+  display:inline-block;
+  padding-inline: 4vw;
+  will-change: transform, opacity;
+  /* ป้องกันเฟรมแรกโผล่มุมซ้ายล่าง */
+  opacity: 0;
+  transform: translateX(100vw);
+  /* ยังไม่ผูก animation ตรงนี้ รอให้ JS สั่งตอนพร้อม */
+}
+#questionBox .mq.run{
+  opacity: 1;
+  animation-name: qScrollLeft;
+  animation-timing-function: linear;
+  animation-iteration-count: 1; /* วิ่งครั้งเดียวตามที่ต้องการ */
+}
+
+/* keyframes วิ่งจากนอกจอขวา ไปจนพ้นซ้าย */
+@keyframes qScrollLeft{
+  from{ transform: translateX(100vw); }
+  to  { transform: translateX(-100%); }
+}
+
+/* เร่งข้อความออกซ้ายพร้อมจาง (ใช้ตอนผู้เล่นเลือกคำตอบ) */
+@keyframes qBoostOut{
+  to { transform: translateX(-120%); opacity: 0; }
+}
+
+/* เร่งข้อความคำถามให้ออกซ้ายพร้อมจาง (เรียกตอนผู้เล่นกดเลือก) */
+@keyframes qBoostOut{ to{ transform:translateX(-120%); opacity:0 } }
+
+/* (ล้างคลาสเก่า ถ้ายังมีติดอยู่จากรอบก่อน) */
+/* === ตราประดับใต้คำถาม === */
+:root{
+  --decor-w: 104vw; /* ปรับความกว้าง */
+  --decor-bottom: -12vh;                /* ระยะจากขอบล่าง */
+  --cap-font: clamp(24px, 5vw, 42px); /* ← เพิ่มบรรทัดนี้เพื่อคุมขนาดแคปชัน */
+}
+
+#qDecor{
+  position: fixed;
+  left: 50%;
+  bottom: var(--decor-bottom);
+  width: var(--decor-w);
+  height: auto;
+  transform: translateX(-50%);
+  /* เดิมเป็น pointer-events:none; เปลี่ยนเป็นคลิกได้ */
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 10950;
+  filter: drop-shadow(0 6px 18px rgba(0,0,0,.35));
+}
+
+/* ปิดการคลิก qDecor แต่คงเรืองแสงได้ */
+#qDecor{
+  pointer-events: none; /* ไม่รับคลิก แต่ยังแสดงและเรืองแสงได้ */
+}
+
+
+/* สถานะเชิญชวนให้กดเพื่อไปต่อ */
+#qDecor.arm-next{
+  animation: none !important;
+  filter: drop-shadow(0 0 18px rgba(255, 220, 0, .75));
+}
+@keyframes pulseNext{
+  0%,100%{ transform: translateX(-50%) scale(1.0); }
+  50%    { transform: translateX(-50%) scale(1.06); }
+}
+
+/* ปุ่มลัดสี่เหลี่ยม: ไปข้อถัดไป (ทำหน้าที่เดียวกับ object0) */
+:root{
+  /* ปรับตำแหน่ง/ขนาดได้ตามต้องการ */
+  --fast-left: 0vw;   /* ระยะจากซ้าย */
+  --fast-top: 88vh;   /* ระยะจากบน */
+  --fast-w: 1840px;    /* ความกว้าง */
+  --fast-h: 130px;     /* ความสูง */
+}
+#fastNext{
+  position: fixed;
+  left: var(--fast-left);
+  top: var(--fast-top);
+  width: var(--fast-w);
+  height: var(--fast-h);
+  display: none;               /* จะแสดงเมื่อมีคลาส .show */
+  place-items: center;
+  background: rgba(0,0,0,.5);
+  border: 3px solid rgba(255,255,255,.7);
+  border-radius: 14px;
+  color:#fff;
+  font-weight: 1000;
+  z-index: 10960;
+  cursor: pointer;
+  user-select: none;
+  pointer-events: auto;
+  box-shadow: 0 10px 28px rgba(0,0,0,.35);
+}
+
+#fastNext {
+  opacity: 0;          /* ทำให้โปร่งใส */
+  pointer-events: auto; /* ยังคลิกได้ (หากต้องการให้คลิกได้) */
+}
+
+#fastNext.show{ display: grid; }
+#fastNext.arm-next{ animation: none; } /* ให้อยู่นิ่งๆ */
+
+#questionBox.pre-x, #questionBox.go-x{ opacity:1; transform:none; transition:none; }
+
+
+/* ภาพประกอบ (ถ้าอยากแสดงเสริม — ซ่อนไว้ก่อน) */
+#qImg{ display:none }
+
+/* =========================
+   ด่าน 3 : Quiz ระบบสุริยะ 2 ตัวเลือก
+   ========================= */
+
+/* แถบคำถามยาวสุดจอ */
+body.level3-mode #questionBox{
+  top: clamp(82px, 12vh, 140px);
+  bottom: auto;
+  left: 0;
+  right: 0;
+  width: 100vw;
+  min-height: clamp(86px, 14vh, 150px);
+
+  transform: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 14px clamp(22px, 5vw, 90px);
+  box-sizing: border-box;
+
+  text-align: center;
+  white-space: normal;
+  overflow: visible;
+
+  background: linear-gradient(135deg, rgba(14,165,233,.92), rgba(37,99,235,.92), rgba(6,182,212,.88));
+  box-shadow:
+    0 12px 34px rgba(0,0,0,.35),
+    inset 0 -4px 12px rgba(255,255,255,.12);
+
+  font-size: clamp(34px, 5.2vw, 72px);
+  font-weight: 1000;
+  line-height: 1.08;
+  z-index: 12100;
+}
+
+/* ข้อความคำถามในแถบ */
+body.level3-mode #questionBox .mq{
+  display: block;
+  width: 100%;
+  padding: 10px 18px 18px;  /* เพิ่มพื้นที่ล่างให้สระ/หางตัวอักษร */
+  box-sizing: border-box;
+
+  opacity: 1;
+  transform: none;
+  animation: none !important;
+
+  color: #fff;
+  text-shadow: 0 4px 12px rgba(0,0,0,.65);
+
+  white-space: nowrap;      /* ห้ามตัดบรรทัด */
+  overflow: visible;        /* ไม่ตัดสระล่าง */
+  line-height: 1.35;        /* เพิ่มระยะสูงของบรรทัดสำหรับภาษาไทย */
+}
+
+/* ตำแหน่งตัวเลือก 2 วงกลม */
+body.level3-mode #choicesRow{
+  top: 58%;
+  left: 0;
+  right: 0;
+  width: 100vw;
+  transform: translateY(-50%);
+
+  justify-content: space-between;
+  align-items: center;
+  gap: 0;
+
+  padding: 0 clamp(70px, 12vw, 240px);
+  box-sizing: border-box;
+}
+
+/* กล่องครอบวงกลม */
+body.level3-mode .option-wrap{
+  width: auto;
+}
+
+/* ตัวเลือกวงกลม ไม่มีขอบ */
+body.level3-mode .option.circle{
+  width: clamp(160px, 24vw, 320px);
+  height: clamp(160px, 24vw, 320px);
+
+  border-radius: 50%;
+  border: none !important;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: clamp(14px, 2.2vw, 28px);
+  box-sizing: border-box;
+
+  color: #fff;
+  font-size: clamp(30px, 4.3vw, 58px);
+  font-weight: 1000;
+  line-height: 1.05;
+  text-align: center;
+
+  background: var(--ring, linear-gradient(135deg, #2563eb, #06b6d4));
+  box-shadow:
+    0 14px 36px rgba(0,0,0,.38),
+    inset 0 8px 18px rgba(255,255,255,.20),
+    inset 0 -10px 20px rgba(0,0,0,.18);
+}
+
+/* ไม่ใช้สี fix ซ้าย-ขวาแล้ว ให้ JS randomRing สุ่มเอง */
+body.level3-mode .option-wrap:nth-child(1) .option.circle,
+body.level3-mode .option-wrap:nth-child(2) .option.circle{
+  background: var(--ring, linear-gradient(135deg, #2563eb, #06b6d4));
+}
+
+body.level3-mode .option-wrap .opt-cap{
+  display: none !important;
+}
+
+body.level3-mode #questionBox.level3-fade-out{
+  animation: level3QuestionFadeOut 520ms ease forwards;
+}
+
+body.level3-mode #choicesRow.level3-fade-out{
+  animation: level3ChoicesFadeOut 520ms ease forwards;
+  pointer-events: none !important;
+}
+
+/* ปิดอนิเมชัน/ทรานซิชันเดิมของปุ่มตอนเฟดออก */
+body.level3-mode #choicesRow.level3-fade-out .option-wrap,
+body.level3-mode #choicesRow.level3-fade-out .option.circle{
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
+/* กล่องคำถาม เฟดอย่างเดียว */
+@keyframes level3QuestionFadeOut{
+  from{ opacity: 1; }
+  to  { opacity: 0; }
+}
+
+/* แถวตัวเลือก ต้องรักษา translateY(-50%) ไว้ */
+@keyframes level3ChoicesFadeOut{
+  from{
+    opacity: 1;
+    transform: translateY(-50%);
+  }
+  to{
+    opacity: 0;
+    transform: translateY(-50%);
+  }
+}
+
+body.level3-mode #qDecor,
+body.level3-mode #fastNext{
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* =========================
+   ด่าน 1 : Planet Viewer
+   ========================= */
+#level1Viewer{
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 11500;
+  pointer-events: none; /* ทั้งชั้นไม่รับคลิก ยกเว้นปุ่ม */
+}
+
+#level1Viewer.show{
+  display: flex;
+}
+
+#viewerStage{
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* รูปเป็นวัตถุเต็มจอ แล้วเลื่อนออก/เข้าเอง */
+.viewer-photo{
+  position: fixed;
+  left: 50%;
+  top: 50%;
+
+  width: auto;
+  height: 100vh;
+  max-width: 92vw;
+  object-fit: contain;
+
+  display: block;
+  pointer-events: none;
+  user-select: none;
+
+  filter: drop-shadow(0 10px 28px rgba(0,0,0,.35));
+  opacity: 0;
+
+  transform: translate(-50%, -50%);
+  will-change: transform, opacity;
+}
+
+.viewer-photo.is-active{
+  opacity: 1;
+  z-index: 2;
+}
+
+/* เดินหน้า: รูปเก่าออกซ้าย / รูปใหม่เข้าจากขวา */
+.viewer-photo.slide-out-left{
+  animation: viewerImgOutLeft 2200ms linear forwards;
+}
+.viewer-photo.slide-in-left{
+  animation: viewerImgInFromRight 2200ms linear forwards;
+}
+
+/* ย้อนกลับ: รูปเก่าออกขวา / รูปใหม่เข้าจากซ้าย */
+.viewer-photo.slide-out-right{
+  animation: viewerImgOutRight 2200ms linear forwards;
+}
+.viewer-photo.slide-in-right{
+  animation: viewerImgInFromLeft 2200ms linear forwards;
+}
+
+@keyframes viewerImgOutLeft{
+  from{
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+  to{
+    opacity: 1;
+    transform: translate(calc(-50% - 140vw), -50%);
+  }
+}
+
+@keyframes viewerImgOutRight{
+  from{
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+  to{
+    opacity: 1;
+    transform: translate(calc(-50% + 140vw), -50%);
+  }
+}
+
+@keyframes viewerImgInFromRight{
+  from{
+    opacity: 1;
+    transform: translate(calc(-50% + 140vw), -50%);
+  }
+  to{
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes viewerImgInFromLeft{
+  from{
+    opacity: 1;
+    transform: translate(calc(-50% - 140vw), -50%);
+  }
+  to{
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* ===== เปลี่ยนสัตว์: cross-fade + ขยายเข้า ===== */
+.viewer-photo.fade-out-animal{
+  animation: viewerAnimalFadeOut 520ms cubic-bezier(.4,0,.2,1) forwards;
+}
+.viewer-photo.fade-in-animal{
+  animation: viewerAnimalFadeIn 720ms cubic-bezier(.2,.9,.2,1) forwards;
+}
+@keyframes viewerAnimalFadeOut{
+  from{
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    filter: blur(0px);
+  }
+  to{
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(.78);
+    filter: blur(8px);
+  }
+}
+@keyframes viewerAnimalFadeIn{
+  from{
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(.78);
+    filter: blur(8px);
+  }
+  60%{
+    opacity: 1;
+    filter: blur(0px);
+  }
+  to{
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    filter: blur(0px);
+  }
+}
+
+
+.viewer-nav{
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 11520;
+
+  width: clamp(62px, 7.5vw, 96px);
+  height: clamp(62px, 7.5vw, 96px);
+
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.55);
+
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,.72),
+    rgba(255,255,255,.36)
+  );
+
+  color: rgba(15,23,42,.88);
+  font-size: clamp(34px, 4.8vw, 58px);
+  font-weight: 1000;
+  line-height: 1;
+
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+
+  box-shadow:
+    0 12px 34px rgba(0,0,0,.28),
+    inset 0 1px 0 rgba(255,255,255,.65),
+    inset 0 -8px 18px rgba(255,255,255,.18);
+
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    background .18s ease,
+    opacity .18s ease;
+}
+
+.viewer-nav.show{
+  display: flex;
+}
+
+.viewer-nav:hover{
+  transform: translateY(-50%) scale(1.1);
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,.9),
+    rgba(255,255,255,.5)
+  );
+  box-shadow:
+    0 16px 42px rgba(0,0,0,.34),
+    0 0 18px rgba(255,255,255,.32);
+}
+
+.viewer-nav:active{
+  transform: translateY(-50%) scale(.95);
+}
+
+#viewerPrev{ left: 18px; }
+#viewerNext{ right: 18px; }
+
+/* ===== คำอธิบายชื่อระยะ (โผล่ใต้ภาพหลัง 4 วิ) ===== */
+#stageCaption{
+  position: fixed;
+  left: 50%;
+  bottom: clamp(20px, 5dvh, 60px);
+  transform: translateX(-50%) translateY(20px);
+  z-index: 11520;
+
+  padding: 14px clamp(20px, 4vw, 38px);
+  border-radius: 999px;
+  max-width: min(94vw, 1100px);
+
+  background: linear-gradient(135deg, rgba(250,204,21,.95), rgba(234,179,8,.95));
+  color: #1f2937;
+  font-size: clamp(28px, 4.2vw, 56px);
+  font-weight: 1000;
+  line-height: 1.1;
+  letter-spacing: .3px;
+  white-space: nowrap;
+  text-align: center;
+
+  border: 2px solid rgba(0,0,0,.18);
+  box-shadow:
+    0 0 18px rgba(250, 204, 21, .75),
+    0 0 34px rgba(250, 204, 21, .45),
+    0 14px 36px rgba(0,0,0,.45);
+  text-shadow: 0 2px 6px rgba(255,255,255,.35);
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .42s ease, transform .42s ease;
+}
+#stageCaption.show{
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ===== ปุ่ม "ข้อมูล" มุมซ้ายล่าง ===== */
+#planetInfoToggleBtn{
+  position: fixed;
+  left: clamp(16px, 3vw, 34px);
+  bottom: clamp(18px, 4dvh, 42px);
+  z-index: 11530;
+
+  display: none;
+  pointer-events: auto;
+
+  padding: 12px 26px;
+  border: 1px solid rgba(255,255,255,.65);
+  border-radius: 999px;
+
+  background: rgba(255,255,255,.72);
+  color: #111827;
+  font-size: clamp(24px, 3vw, 36px);
+  font-weight: 1000;
+  cursor: pointer;
+
+  box-shadow: 0 12px 30px rgba(0,0,0,.35);
+  backdrop-filter: blur(8px);
+  transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+}
+
+#planetInfoToggleBtn.show{
+  display: block;
+}
+
+#planetInfoToggleBtn:hover{
+  transform: scale(1.06);
+  box-shadow: 0 16px 38px rgba(0,0,0,.45);
+}
+
+#planetInfoToggleBtn:active{
+  transform: scale(.96);
+}
+
+/* ===== ปุ่มข้อมูล 3 ปุ่มของด่าน 1 ===== */
+#planetInfoButtons{
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 11510;
+  pointer-events: auto;
+
+  width: 0;
+  height: 0;
+
+  display: none;
+}
+
+#planetInfoButtons.show{
+  display: block;
+}
+
+.planet-info-btn{
+  pointer-events: auto;
+  min-width: clamp(180px, 22vw, 280px);
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 16px;
+
+  background: linear-gradient(135deg, #facc15, #eab308); /* เหลือง */
+  color: #1f2937; /* ตัวหนังสือเข้ม */
+
+  font-size: clamp(24px, 3vw, 34px);
+  font-weight: 1000;
+  cursor: pointer;
+
+  box-shadow: 0 10px 28px rgba(0,0,0,.35);
+  border: 1px solid rgba(0,0,0,.25);
+  backdrop-filter: blur(6px);
+
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+/* ===== จัดปุ่มเป็นครึ่งวงกลม ===== */
+:root{
+  --info-radius: 400px; /* 🔥 ปรับระยะห่างจากจุดกลาง */
+}
+
+.planet-info-btn{
+  --tx: 0px;
+  --ty: 0px;
+  transform: translate(-50%, -50%) translate(var(--tx), var(--ty));
+}
+
+/* บน */
+.planet-info-btn:nth-child(1){
+  position: absolute;
+  --tx: 0px;
+  --ty: calc(-1 * var(--info-radius));
+}
+
+/* ซ้าย */
+.planet-info-btn:nth-child(2){
+  position: absolute;
+  --tx: calc(-0.9 * var(--info-radius));  /* 🔥 ขยายระยะ */
+  --ty: calc(-0.7 * var(--info-radius));
+}
+
+/* ขวา */
+.planet-info-btn:nth-child(3){
+  position: absolute;
+  --tx: calc(0.9 * var(--info-radius));   /* 🔥 ขยายระยะ */
+  --ty: calc(-0.7 * var(--info-radius));
+}
+
+.planet-info-btn:hover{
+  transform: translate(-50%, -50%) 
+             translate(var(--tx), var(--ty)) 
+             scale(1.08);
+}
+
+.planet-info-btn:active{
+  transform: translate(-50%, -50%) 
+             translate(var(--tx), var(--ty)) 
+             scale(0.95);
+}
+
+/* ===== Fade + Glow ปุ่มข้อมูลด่าน 1 ===== */
+#planetInfoToggleBtn,
+.planet-info-btn{
+  opacity: 0;
+  filter: drop-shadow(0 0 10px rgba(250, 204, 21, .65));
+  box-shadow:
+    0 0 18px rgba(250, 204, 21, .75),
+    0 0 34px rgba(250, 204, 21, .45),
+    0 12px 30px rgba(0,0,0,.35);
+}
+
+#planetInfoToggleBtn.show{
+  display: block;
+  animation: planetInfoFadeIn 520ms ease forwards,
+             planetInfoGlow 1600ms ease-in-out infinite;
+}
+
+#planetInfoToggleBtn.hide-out{
+  display: block;
+  pointer-events: none;
+  animation: planetInfoFadeOut 360ms ease forwards;
+}
+
+#planetInfoButtons.show{
+  display: block;
+}
+
+#planetInfoButtons.show .planet-info-btn{
+  animation: planetInfoBtnFadeIn 520ms ease forwards,
+             planetInfoGlow 1600ms ease-in-out infinite;
+}
+
+#planetInfoButtons.hide-out{
+  display: block;
+  pointer-events: none;
+}
+
+#planetInfoButtons.hide-out .planet-info-btn{
+  animation: planetInfoBtnFadeOut 360ms ease forwards;
+}
+
+@keyframes planetInfoFadeIn{
+  from{ opacity:0; transform: translateY(14px) scale(.96); }
+  to  { opacity:1; transform: translateY(0) scale(1); }
+}
+
+@keyframes planetInfoFadeOut{
+  from{ opacity:1; transform: translateY(0) scale(1); }
+  to  { opacity:0; transform: translateY(14px) scale(.96); }
+}
+
+@keyframes planetInfoBtnFadeIn{
+  from{
+    opacity:0;
+    transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) translateY(18px) scale(.94);
+  }
+  to{
+    opacity:1;
+    transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) translateY(0) scale(1);
+  }
+}
+
+@keyframes planetInfoBtnFadeOut{
+  from{
+    opacity:1;
+    transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) translateY(0) scale(1);
+  }
+  to{
+    opacity:0;
+    transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) translateY(18px) scale(.94);
+  }
+}
+
+@keyframes planetInfoGlow{
+  0%,100%{
+    box-shadow:
+      0 0 14px rgba(250, 204, 21, .55),
+      0 0 28px rgba(250, 204, 21, .35),
+      0 12px 30px rgba(0,0,0,.35);
+  }
+  50%{
+    box-shadow:
+      0 0 26px rgba(250, 204, 21, .95),
+      0 0 52px rgba(250, 204, 21, .65),
+      0 16px 38px rgba(0,0,0,.45);
+  }
+}
+
+/* ===== หน้าต่างข้อมูลดาว ===== */
+#planetInfoModal{
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 13000;
+}
+
+#planetInfoModal.show{
+  display: block;
+}
+
+#planetInfoModal .planet-info-backdrop{
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.62);
+  backdrop-filter: blur(6px);
+}
+
+.planet-info-panel{
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+
+  /* ลดความกว้างจริง */
+  width: clamp(320px, 100vw, 1200px);
+  max-width: 1200px;
+
+  /* สูงไม่เกินจอจริง */
+  max-height: 92dvh;
+
+  overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
+
+  background: linear-gradient(135deg, #0f172a, #1e3a8a);
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 24px;
+  box-shadow: 0 24px 70px rgba(0,0,0,.45);
+  padding: clamp(18px, 2.4vw, 30px);
+  box-sizing: border-box;
+}
+
+
+#planetInfoClose{
+  position: absolute;
+  bottom: 18px; 
+  right: 18px;
+
+  width: clamp(64px, 6vw, 88px);   /* 👈 ใหญ่ขึ้น + responsive */
+  height: clamp(64px, 6vw, 88px);
+
+  border: 0;
+  border-radius: 999px;
+
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,.25),
+    rgba(255,255,255,.08)
+  );
+
+  color: #fff;
+  font-size: clamp(32px, 3vw, 46px);  /* 👈 ตัว X ใหญ่ขึ้น */
+  font-weight: 1000;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 12px 30px rgba(0,0,0,.35),
+    0 0 16px rgba(255,255,255,.2);
+
+  border: 1px solid rgba(255,255,255,.35);
+
+  backdrop-filter: blur(8px);
+
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+/* hover */
+#planetInfoClose:hover{
+  transform: scale(1.1);
+  box-shadow:
+    0 16px 40px rgba(0,0,0,.45),
+    0 0 22px rgba(255,255,255,.35);
+}
+
+/* กด */
+#planetInfoClose:active{
+  transform: scale(0.9);
+}
+
+.planet-info-layout{
+  display: block;
+}
+
+.planet-info-left{
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.planet-info-main-title{
+  font-size: clamp(34px, 4vw, 52px);
+  font-weight: 1000;
+  line-height: 1.05;
+  margin-bottom: 8px;
+}
+
+.planet-info-sub-title{
+  font-size: clamp(24px, 2.8vw, 34px);
+  font-weight: 900;
+  opacity: .95;
+  margin-bottom: 14px;
+}
+
+.planet-info-highlight{
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 16px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: clamp(22px, 2.4vw, 30px);
+  line-height: 1.2;
+  box-shadow: inset 0 8px 24px rgba(255,255,255,.02);
+}
+
+.planet-info-highlight .label{
+  font-weight: 1000;
+}
+
+.planet-info-body{
+  display: grid;
+  gap: 12px;
+  flex: 0 0 auto;   /* ให้ข้อความใช้พื้นที่จริงของตัวเอง */
+}
+
+.planet-info-item{
+  background: rgba(255,255,255,.04);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  padding: 14px 16px;
+  font-size: clamp(22px, 2.35vw, 30px);
+  line-height: 1.25;
+}
+
+.planet-info-item .label{
+  font-weight: 1000;
+}
+
+/* ===== bodyHtml แบบกรอบเดียว ===== */
+.planet-info-item-single{
+  display: block;
+}
+
+.planet-info-item-single > div{
+  margin-bottom: 14px;
+}
+
+.planet-info-item-single > div:last-child{
+  margin-bottom: 0;
+}
+
+.planet-info-layout{
+  display: block;
+}
+
+.planet-info-gallery{
+  margin-top: 14px;
+
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+
+  /* ใช้พื้นที่ที่เหลือจากข้อความ */
+  flex: 1 1 auto;
+  min-height: 0;
+
+  /* ล็อกไม่ให้ส่วนรูปล้นจอ */
+  max-height: 32dvh;
+}
+
+#planetInfoImage1,
+#planetInfoImage2{
+  width: 100%;
+  height: 100%;              /* 🔥 สำคัญ */
+  max-width: 100%;
+  max-height: 32dvh;
+
+  object-fit: cover;         /* 🔥 เปลี่ยนตรงนี้ */
+  object-position: center;   /* จัดกลาง */
+
+  display: block;
+}
+
+@media (max-width: 900px){
+.planet-info-panel{
+  width: min(88vw, 1200px);
+  max-width: 1200px;
+}
+
+  .planet-info-gallery{
+    grid-template-columns: 1fr;
+    max-height: 30dvh;
+  }
+
+#planetInfoImage1,
+#planetInfoImage2{
+  width: 100%;
+  height: 100%;
+  max-width: min(100%, 520px);
+  max-height: 14dvh;
+
+  object-fit: cover;   /* 🔥 */
+}
+}
+
+
+
+/* เอฟเฟกต์คะแนนลอย */
+.fly-score{
+  position:fixed; left:50%; top:50%;
+  font-weight:1000; font-size:clamp(28px,4vw,54px);
+  transform:translate(-50%,-50%); pointer-events:none; z-index:20000; opacity:0;
+  animation:flyUp 900ms ease-out forwards; text-shadow:0 4px 14px rgba(0,0,0,.45);
+}
+.fly-score.ok{ color:#10b981 } .fly-score.bad{ color:#ef4444 }
+@keyframes flyUp{
+  0%{ opacity:0; transform:translate(-50%,-40px) scale(.96) }
+  15%{ opacity:1; transform:translate(-50%,-50%) scale(1) }
+  100%{ opacity:0; transform:translate(-50%,-110px) scale(1.06) }
+}
+
+/* ปุ่ม Mute/Fullscreen */
+#muteBtn,#fsBtn{
+  position:fixed; right:12px; width:44px; height:44px; border-radius:999px;
+  background:rgba(0,0,0,.45); border:1px solid rgba(255,255,255,.3);
+  color:#fff; font-size:18px; display:grid; place-items:center; cursor:pointer; z-index:50000;
+}
+#muteBtn{ bottom:12px } #fsBtn{ bottom:62px }
+
+
+/* =========================
+   หน้า “สรุปคะแนน”
+   ========================= */
+#overlay{ visibility:hidden; opacity:0; transition:.25s; position:fixed; inset:0; display:grid; place-items:center; background:rgba(0,0,0,.55); z-index:99000 }
+.result-panel{
+  --panel-bg: rgba(20,20,20,.92);
+  background:var(--panel-bg);
+  border:1px solid rgba(255,255,255,.12);
+  padding: clamp(20px, 4vw, 32px);
+  border-radius: 20px;
+  width: min(92vw, 640px);
+  display:grid; gap:14px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.55); backdrop-filter: blur(6px);
+}
+.result-title{ margin:0; font-weight:1000; font-size:clamp(28px,4.5vw,44px) }
+.badge{ font-size: clamp(56px, 10vw, 120px); line-height:1; filter: drop-shadow(0 8px 24px rgba(0,0,0,.45)) }
+.result-metrics{ display:grid; gap:12px }
+.metric{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:12px; box-shadow:0 8px 24px rgba(0,0,0,.25) inset }
+.metric .label{ opacity:.9 } .metric .value{ font-size:clamp(28px,5.5vw,52px); font-weight:1000 }
+.result-actions{ display:flex; gap:12px; justify-content:center; flex-wrap:wrap }
+.btn{ appearance:none; border:none; border-radius:14px; padding:12px 18px; font-weight:900; font-size:clamp(16px,2.8vw,20px); cursor:pointer; box-shadow:0 10px 28px rgba(0,0,0,.35) }
+.btn.strong{ color:#fff; background:linear-gradient(180deg,#3b82f6,#1d4ed8); border:1px solid rgba(255,255,255,.15) }
+.btn.ghost{ color:#fff; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18) }
+
+/* =========================
+   กล้อง/แคนวาส AR
+   ========================= */
+#cameraMirror{
+  position:fixed;
+  inset:0;
+  width:100vw;
+  height:100vh;
+  object-fit:cover;
+  transform:scaleX(-1);
+  z-index:-1;
+  display:none;
+  opacity:0;
+  pointer-events:none;
+  background:#000;
+}
+
+#personCanvas{
+  position:fixed;
+  inset:0;
+  width:100vw;
+  height:100vh;
+
+  /* อยู่ด้านหลังสุด: เหนือพื้นหลังเกม แต่ต่ำกว่า UI ทั้งหมด
+     (camCanvas=2, game=3, qBox=11000, ตัวเลือก=12000, ฯลฯ)
+     เพื่อไม่ให้ภาพคนบังรูปสัตว์/คำถาม/ปุ่มในเกม */
+  z-index:1;
+
+  pointer-events:none; /* สำคัญ ห้ามลบ */
+  display:none;
+}
+
+/* canvas ตรวจมือ/สัมผัส — ของเดิม */
+#camCanvas{
+  position:fixed;
+  inset:0;
+  width:100vw;
+  height:100vh;
+  z-index:2;
+  pointer-events:none;
+  display:none;
+}
+
+#game{ z-index:3; position:relative }
+
+/* มุมภาพประดับ (ถ้ามีไฟล์) */
+body::after{ content:""; position:fixed; top:0; left:0; width:220px; height:220px; background:url("image/button1.png") no-repeat left top/contain; pointer-events:none; z-index:10000 }
+body::before{ content:""; position:fixed; top:0; right:0; width:200px; height:200px; background:url("image/button2.png") no-repeat right top/contain; pointer-events:none; z-index:10000 }
+
+:root{
+  --flash-ok:  rgba(16,185,129,.6);  /* เขียว */
+  --flash-bad: rgba(239,68,68,.6);   /* แดง  */
+  --flash-fade-ms: 120ms;            /* ความเร็วเฟดเข้า/ออก */
+}
+
+#emojiMeteorLayer{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 60000;
+}
+
+.emoji-meteor{
+  position: fixed;
+  left: var(--x);
+  top: var(--y);
+  font-size: var(--s);
+  opacity: 0;
+  transform: translate3d(0,0,0) rotate(var(--r));
+  animation: emojiMeteorFall var(--d) linear forwards;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,.35));
+  will-change: transform, opacity;
+}
+
+@keyframes emojiMeteorFall{
+  0%{
+    opacity: 0;
+    transform: translate3d(0,0,0) rotate(var(--r)) scale(.8);
+  }
+  12%{
+    opacity: 1;
+  }
+  100%{
+    opacity: 0;
+    transform: translate3d(var(--dx), var(--dy), 0) rotate(var(--rr)) scale(1.15);
+  }
+}
+
+/* =========================
+   พื้นหลังซ้อนหลัง Banner2
+   ========================= */
+#bgLayer {
+  position: fixed;
+  inset: 0;
+  background: url("image/background2.png") center/cover no-repeat;
+  z-index: 1000; /* อยู่เหนือพื้นหลังเกม */
+}
+
+#banner2,
+#enterBtn {
+  position: relative;
+  z-index: 2000; /* อยู่เหนือ background2 */
+}
+/* ให้ bgLayer โผล่เฉพาะตอนยังไม่เข้าเกมเท่านั้น */
+body.in-game #bgLayer {
+  display: none !important;
+}
+
+body:not(.in-game) #bgLayer {
+  display: none !important;
+}
+/* ===== Hover Effect ปุ่มเข้าสู่เกม ===== */
+#welcome #enterBtn{
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  will-change: transform;
+}
+
+#welcome #enterBtn:hover{
+  transform: scale(1.08) translateY(-2px);
+  box-shadow:
+    inset 0 2px 8px rgba(255,255,255,.4),
+    inset 0 -4px 10px rgba(0,0,0,.30),
+    0 0 28px rgba(190, 250, 100, .55),
+    0 16px 40px rgba(0,0,0,.5);
+  border-color: rgba(255, 240, 180, .85);
+}
+
+#welcome #enterBtn:active{
+  transform: scale(0.97);
+}
+
+
+/* ======= พรีโหลด ======= */
+#preloadOverlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:#000c; color:#fff; z-index:99999; flex-direction:column; gap:12px; font-weight:900 }
+</style>
+</head>
+<body>
+
+<!-- ==== AR Mirror ==== -->
+<video id="cameraMirror" playsinline muted></video>
+<canvas id="personCanvas"></canvas>
+<canvas id="camCanvas"></canvas>
+
+<div id="game" aria-label="สนามเกม">
+  <div id="choicesRow" aria-label="ตัวเลือกคำตอบ 3 ปุ่ม"></div>
+  <div id="questionBox" aria-live="polite"></div>
+  <img id="qDecor" src="objects2/object0.png" alt="ตกแต่งใต้คำถาม">
+  <img id="qImg" alt="ภาพประกอบ" />
+
+  <!-- ===== ด่าน 1/2 : Animal Life Cycle Viewer ===== -->
+<div id="level1Viewer" aria-label="แสดงภาพวัฏจักรชีวิต">
+  <button id="viewerPrev" class="viewer-nav" aria-label="ภาพก่อนหน้า">❮</button>
+
+  <div id="viewerStage">
+    <img id="viewerImgA" class="viewer-photo is-active" alt="ภาพวัฏจักรชีวิต">
+    <img id="viewerImgB" class="viewer-photo" alt="ภาพวัฏจักรชีวิต">
+  </div>
+
+  <!-- คำอธิบายชื่อระยะ (โผล่ใต้ภาพหลังผ่านไป 4 วิ) -->
+  <div id="stageCaption" aria-live="polite"></div>
+
+  <!-- ปุ่มเปลี่ยนสัตว์ (โผล่ที่ภาพสุดท้ายของวัฏจักร แทนปุ่ม "ข้อมูล" เดิม) -->
+  <button id="planetInfoToggleBtn" aria-label="เปลี่ยนสัตว์">เปลี่ยนสัตว์ 🔄</button>
+
+  <button id="viewerNext" class="viewer-nav" aria-label="ภาพถัดไป">❯</button>
+</div>
+
+  <!-- ปุ่มลัดสี่เหลี่ยม: ไปข้อถัดไป -->
+  <div id="fastNext" role="button" aria-label="ไปข้อถัดไป">NEXT</div>
+</div>
+
+<!-- ===== Welcome ===== -->
+<div id="welcome" role="dialog" aria-modal="true">
+  <div class="brand"><img src="image/banner2.png" alt="โรงงานนักประดิษฐ์"></div>
+  <button id="enterBtn">เข้าสู่เกม</button>
+</div>
+
+<!-- ===== Landing ===== -->
+<div id="landing" role="dialog" aria-modal="true" class="hide">
+  <div class="brand"><img src="image/banner2.png" alt="โรงงานนักประดิษฐ์"></div>
+  <div class="level-menu">
+    <button class="levelBtn" data-level="1">วัฏจักรชีวิต 3 ระยะ</button>
+    <button class="levelBtn" data-level="2">วัฏจักรชีวิต 4 ระยะ</button>
+    <button class="levelBtn" data-level="3">ตอบคำถามวัฏจักรชีวิต</button>
+    <button class="levelBtn" id="guideBtn">กติกาการเล่น 📖</button>
+  </div>
+</div>
+
+<div id="bgLayer"></div>
+
+<!-- ===== Start / Countdown ===== -->
+<div id="startScreen">
+  <div id="startTitle">ภารกิจ : สำรวจระบบสุริยะ</div>
+  <button id="startBtn">เริ่ม</button>
+  <div id="countdown">3</div>
+</div>
+
+<!-- ===== Guide ===== -->
+<div id="guideScreen" style="display:none; position:fixed; inset:0; align-items:center; justify-content:center; background:url('image/background2.png') center/cover no-repeat; z-index:20001">
+  <div class="guide-wrap" style="width:min(95vw, 1200px); max-height:92vh; display:flex; flex-direction:column; gap:10px; align-items:center; justify-content:center">
+    <img src="image/guide.png" alt="คู่มือเกม" style="width:100%; height:auto; max-height:92vh; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.55); display:block">
+    <button id="guideBack" class="btn-mini">เมนูหลัก</button>
+  </div>
+</div>
+
+<!-- ===== HUD ===== -->
+<div class="hud">
+  <div class="left">
+    <div class="stack">
+      <div style="display:flex; gap:8px;">
+        <button id="quickRestart" class="btn-mini">หน้าหลัก</button>
+        <button id="pauseBtn" class="btn-mini">⏸ หยุด</button>
+        <button id="camBtn" class="btn-mini">📷: ปิด</button>
+      </div>
+    </div>
+  </div>
+  <div class="right">
+    <div class="stack" style="align-items:flex-end">
+      <div class="score-label">คะแนน</div>
+      <div id="goldWrap" class="pill gold" aria-live="polite"><span class="num">0</span></div>
+    </div>
+  </div>
+</div>
+<div id="clock" class="clock-pill">02:00</div>
+
+<!-- ===== Overlay สรุปคะแนน ===== -->
+<div id="overlay">
+  <div class="result-panel">
+    <div class="badge" id="scoreBadge" aria-hidden="true">🏆</div>
+    <h1 class="result-title" id="endTitle">หมดเวลา</h1>
+    <div class="result-metrics">
+      <div class="metric">
+        <div class="label">คะแนน</div>
+        <div class="value"><b id="finalScore">0</b></div>
+      </div>
+    </div>
+    <div class="result-actions">
+      <button class="btn strong" id="restartBtn">เริ่มใหม่</button>
+      <button class="btn ghost" id="selectLevelBtn">กลับสู่หน้าหลัก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== เสียง ===== -->
+<audio id="hitSound" preload="auto" src="image/audio1.mp3"></audio>
+<audio id="winSound" preload="auto" src="image/win2.mp3"></audio>
+<audio id="bgm" preload="auto" loop src="image/bgm3.mp3"></audio>
+<audio id="selectSound" preload="auto" src="image/select.mp3"></audio>
+<audio id="wrongSound" preload="auto" src="image/wrong.mp3"></audio>
+<audio id="beltSound" preload="auto" src="image/belt.mp3"></audio>
+
+
+
+<!-- ===== ปุ่ม Mute / Fullscreen ===== -->
+<button id="muteBtn" aria-pressed="false" title="Mute / Unmute">🔊</button>
+<button id="fsBtn" aria-pressed="false" title="เข้าสู่โหมดเต็มจอ">⛶</button>
+
+<!-- ===== ควบคุม Mute ===== -->
+<script>
+
+(function(){
+  const muteBtn = document.getElementById('muteBtn');
+  const bgm = document.getElementById('bgm');  // ← เพิ่ม
+  if(!muteBtn || !bgm) return;
+  let isMuted = false;
+  function applyMute(m){
+    isMuted = !!m;
+    bgm.muted = isMuted;                      // ← ปิดเฉพาะ bgm
+    if(isMuted){ bgm.setAttribute('muted',''); }
+    else       { bgm.removeAttribute('muted'); }
+
+    muteBtn.setAttribute('aria-pressed', String(isMuted));
+    muteBtn.textContent = isMuted ? '🔇' : '🔊';
+  }
+  muteBtn.addEventListener('click', () => applyMute(!isMuted));
+})();
+</script>
+
+<!-- ===== ควบคุม Fullscreen ===== -->
+<script>
+(function(){
+  const fsBtn = document.getElementById('fsBtn');
+  if (!fsBtn) return;
+  function fsEnabled(){ return document.fullscreenEnabled || document.webkitFullscreenEnabled || document.msFullscreenEnabled }
+  function isFull(){ return document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement }
+  function requestFS(){ const el=document.documentElement; (el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen)?.call(el) }
+  function exitFS(){ (document.exitFullscreen||document.webkitExitFullscreen||document.msExitFullscreen)?.call(document) }
+  function render(){ const on=!!isFull(); fsBtn.setAttribute('aria-pressed', String(on)); fsBtn.title = on ? 'ออกจากโหมดเต็มจอ' : 'เข้าสู่โหมดเต็มจอ'; fsBtn.textContent = on ? '🗗' : '⛶' }
+  if (!fsEnabled()){ fsBtn.style.display='none'; return }
+  fsBtn.addEventListener('click', () => { if(isFull()) exitFS(); else requestFS() });
+  document.addEventListener('fullscreenchange', render);
+  document.addEventListener('webkitfullscreenchange', render);
+  document.addEventListener('msfullscreenchange', render);
+  render();
+})();
+</script>
+
+<!-- ===== ระบบเกมหลัก (แนววัสดุ–วัตถุ) ===== -->
+<script>
+(()=>{
+// =========================
+// สถานะ/ตัวแปรหลัก
+// =========================
+
+window.__ALL_IMAGES_READY__ = false;
+window.currentLevel = 1;
+
+const GAME_DURATION_MS = 120000; // 2 นาที
+let gameTimerId = null, gameEndAt = 0, remainingMs = GAME_DURATION_MS;
+let running=false, ended=true, paused=false;
+let awaitingContinue=false;
+let score=0, round=0, awaitingAnswer=false;
+
+// สำหรับด่าน 3 (หลายคำตอบ)
+let remainingCorrect = new Set();
+let __multiCorrectSet = new Set();
+
+// สำหรับกันโจทย์ซ้ำของด่าน 2 และ 4
+let usedLevel2Questions = [];
+let usedLevel3Questions = [];
+let usedLevel4Questions = [];
+
+// ===== ด่าน 1/2 : Life Cycle Viewer =====
+// ด่าน 1: สัตว์ที่มีวัฏจักรชีวิต 3 ระยะ (ใช้รูปจากโฟลเดอร์ 3step/)
+// ด่าน 2: สัตว์ที่มีวัฏจักรชีวิต 4 ระยะ (ใช้รูปจากโฟลเดอร์ 4step/)
+const LIFECYCLE_3STEP = {
+  folder: '3step',
+  stageNames: ['ไข่', 'ตัวอ่อน', 'ตัวเต็มวัย'], // default (fallback)
+  animals: [
+    { key: 'chicken',  label: 'ไก่',    stageNames: ['ไข่', 'ตัวอ่อน (ลูกเจี๊ยบ)',   'ตัวเต็มวัย (ไก่)']   },
+    { key: 'duck',     label: 'เป็ด',   stageNames: ['ไข่', 'ตัวอ่อน (ลูกเป็ด)',     'ตัวเต็มวัย (เป็ด)']   },
+    { key: 'turtle',   label: 'เต่า',   stageNames: ['ไข่', 'ตัวอ่อน (ลูกเต่า)',     'ตัวเต็มวัย (เต่า)']   },
+    { key: 'crocodile',label: 'จระเข้', stageNames: ['ไข่', 'ตัวอ่อน (ลูกจระเข้)',   'ตัวเต็มวัย (จระเข้)'] }
+  ]
+};
+
+const LIFECYCLE_4STEP = {
+  folder: '4step',
+  stageNames: ['ไข่', 'ตัวอ่อน', 'ดักแด้', 'ตัวเต็มวัย'], // default (fallback)
+  animals: [
+    { key: 'butterfly', label: 'ผีเสื้อ',  stageNames: ['ไข่', 'ตัวอ่อน (หนอน)',    'ดักแด้', 'ตัวเต็มวัย (ผีเสื้อ)']  },
+    { key: 'mosquito',  label: 'ยุง',      stageNames: ['ไข่', 'ตัวอ่อน (ลูกน้ำ)',  'ดักแด้ (ตัวโม่ง)', 'ตัวเต็มวัย (ยุง)'] },
+    { key: 'fly',       label: 'แมลงวัน',  stageNames: ['ไข่', 'ตัวอ่อน (หนอน)',    'ดักแด้', 'ตัวเต็มวัย (แมลงวัน)']  },
+    { key: 'bee',       label: 'ผึ้ง',     stageNames: ['ไข่', 'ตัวอ่อน',            'ดักแด้', 'ตัวเต็มวัย (ผึ้ง)']     },
+    { key: 'beetle',    label: 'ด้วง',     stageNames: ['ไข่', 'ตัวอ่อน (หนอน)',    'ดักแด้', 'ตัวเต็มวัย (ด้วง)']     }
+  ]
+};
+
+// ลำดับการสุ่มสัตว์: shuffle ครั้งแรก แล้วเดินทีละตัว ครบแล้ววนเริ่มใหม่
+let lifecycle3Queue = [];
+let lifecycle3QueueIdx = 0;
+let lifecycle4Queue = [];
+let lifecycle4QueueIdx = 0;
+
+function getActiveLifecycleConfig(){
+  return (window.currentLevel === 2) ? LIFECYCLE_4STEP : LIFECYCLE_3STEP;
+}
+
+function buildAnimalQueue(cfg){
+  // คืน array สำเนาที่ shuffle แล้ว
+  return shuffle(cfg.animals.map(a => a));
+}
+
+function pickNextAnimal(){
+  if (window.currentLevel === 2){
+    if (lifecycle4QueueIdx >= lifecycle4Queue.length){
+      lifecycle4Queue = buildAnimalQueue(LIFECYCLE_4STEP);
+      lifecycle4QueueIdx = 0;
+    }
+    const animal = lifecycle4Queue[lifecycle4QueueIdx++];
+    return animal;
+  } else {
+    if (lifecycle3QueueIdx >= lifecycle3Queue.length){
+      lifecycle3Queue = buildAnimalQueue(LIFECYCLE_3STEP);
+      lifecycle3QueueIdx = 0;
+    }
+    const animal = lifecycle3Queue[lifecycle3QueueIdx++];
+    return animal;
+  }
+}
+
+// บังคับสร้าง queue ใหม่ (ใช้ตอนเริ่มด่านใหม่ — จะได้สุ่มสัตว์ตัวแรกใหม่)
+function resetLifecycleQueueForCurrentLevel(){
+  if (window.currentLevel === 2){
+    lifecycle4Queue = buildAnimalQueue(LIFECYCLE_4STEP);
+    lifecycle4QueueIdx = 0;
+  } else {
+    lifecycle3Queue = buildAnimalQueue(LIFECYCLE_3STEP);
+    lifecycle3QueueIdx = 0;
+  }
+}
+
+// สถานะปัจจุบันของ viewer
+let currentAnimal = null;          // { key, label }
+let currentStageCount = 3;         // 3 หรือ 4
+let currentStageNames = [];
+let level1Index = 0;               // index ของระยะปัจจุบัน (0-based)
+let activeViewerSlot = 'A';
+let level1Animating = false;
+
+// สร้าง path รูปของระยะที่ index (0-based) ของสัตว์ปัจจุบัน
+function buildStageSrc(animalKey, stageIdx0){
+  const cfg = getActiveLifecycleConfig();
+  return `${cfg.folder}/${animalKey}${stageIdx0 + 1}.png`;
+}
+
+// คืน array รูปทั้งหมดของสัตว์ปัจจุบัน
+function getCurrentAnimalSrcs(){
+  if (!currentAnimal) return [];
+  return Array.from({ length: currentStageCount }, (_, i) => buildStageSrc(currentAnimal.key, i));
+}
+
+
+
+// DOM
+const game = document.getElementById('game');
+const choicesRow = document.getElementById('choicesRow');
+const qBox = document.getElementById('questionBox');
+const qDecor = document.getElementById('qDecor');
+const fastNext = document.getElementById('fastNext');
+
+const level1Viewer = document.getElementById('level1Viewer');
+const viewerStage = document.getElementById('viewerStage');
+const viewerImgA = document.getElementById('viewerImgA');
+const viewerImgB = document.getElementById('viewerImgB');
+const viewerPrev = document.getElementById('viewerPrev');
+const viewerNext = document.getElementById('viewerNext');
+
+const planetInfoToggleBtn = document.getElementById('planetInfoToggleBtn');
+const stageCaptionEl = document.getElementById('stageCaption');
+
+let stageCaptionTimer = null;
+let switchAnimalBtnVisible = false;
+
+function isViewerLevel(){
+  return window.currentLevel === 1 || window.currentLevel === 2;
+}
+
+function hideStageCaption(){
+  clearTimeout(stageCaptionTimer);
+  stageCaptionTimer = null;
+  if (stageCaptionEl){
+    stageCaptionEl.classList.remove('show');
+    stageCaptionEl.textContent = '';
+  }
+}
+
+function scheduleStageCaption(stageIdx0){
+  clearTimeout(stageCaptionTimer);
+  stageCaptionTimer = null;
+  if (!stageCaptionEl) return;
+  // ซ่อนคำเดิมก่อน
+  stageCaptionEl.classList.remove('show');
+  stageCaptionEl.textContent = '';
+
+  stageCaptionTimer = setTimeout(() => {
+    if (
+      !isViewerLevel() ||
+      ended ||
+      !level1Viewer?.classList.contains('show')
+    ) return;
+    const name = currentStageNames[stageIdx0] || '';
+    if (!name) return;
+    stageCaptionEl.textContent = name;
+    stageCaptionEl.classList.add('show');
+  }, 4000);
+}
+
+function hideSwitchAnimalBtn(){
+  if (!planetInfoToggleBtn) return;
+  planetInfoToggleBtn.classList.remove('show','hide-out');
+  switchAnimalBtnVisible = false;
+}
+
+function showSwitchAnimalBtn(){
+  if (!planetInfoToggleBtn) return;
+  planetInfoToggleBtn.classList.remove('hide-out');
+  planetInfoToggleBtn.classList.add('show');
+  switchAnimalBtnVisible = true;
+}
+
+// แทน startPlanetInfoRevealTimer / hidePlanetInfoControls แบบ stub (เพื่อไม่ให้โค้ดอื่นที่ยังเรียกใช้พัง)
+let planetInfoRevealTimer = null;
+function hidePlanetInfoControls(animate = false){
+  clearTimeout(planetInfoRevealTimer);
+  planetInfoRevealTimer = null;
+  hideSwitchAnimalBtn();
+}
+
+function startPlanetInfoRevealTimer(){
+  // ไม่ทำอะไร – ปุ่ม "เปลี่ยนสัตว์" จะถูกเปิดเฉพาะตอนถึงระยะสุดท้าย
+}
+
+planetInfoToggleBtn?.addEventListener('click', () => {
+  if (!isViewerLevel() || ended) return;
+  if (level1Animating) return; // ระหว่าง animation ห้ามกดซ้ำ
+  // เปลี่ยนสัตว์: ดึงสัตว์ตัวถัดไปจาก queue แล้วเริ่มดูระยะแรกใหม่
+  loadAnimalIntoViewer(pickNextAnimal());
+});
+
+fastNext?.addEventListener('click', ()=>{
+  hideSwitchAnimalBtn();
+  hideStageCaption();
+  if (ended || !awaitingContinue) return;
+  awaitingContinue = false;
+  syncFastNextUI();
+  if (beltSound) { try{ beltSound.currentTime = 0; beltSound.muted = isGlobalMuted(); beltSound.play?.(); }catch(_){} }
+  nextRound();
+});
+
+
+/* จัดวาง qDecor ให้อยู่กึ่งกลางใต้กล่องคำถาม (ไม่ใช่ตามตัววิ่ง) */
+function positionDecorUnderQuestion(){
+  if(!qDecor) return;
+  const r = qBox.getBoundingClientRect();
+  const offsetX = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue('--decor-offset-x')
+      || '0'
+  ) || 0;
+
+  const centerX = r.left + (r.width/2) + offsetX;
+  qDecor.style.transform = 'translateX(0)';
+  qDecor.style.left = Math.round(centerX - (qDecor.offsetWidth/2)) + 'px';
+}
+
+function syncFastNextUI(){
+  if (awaitingContinue && !ended){
+    fastNext?.classList.add('show','arm-next');
+    qDecor?.classList.add('arm-next');
+  }else{
+    fastNext?.classList.remove('show','arm-next');
+    qDecor?.classList.remove('arm-next');
+  }
+}
+
+function clearLevel1Everything(){
+  clearTimeout(planetInfoRevealTimer);
+  planetInfoRevealTimer = null;
+
+  hideStageCaption();
+  hideSwitchAnimalBtn();
+
+  level1Viewer?.classList.remove('show');
+  viewerPrev?.classList.remove('show');
+  viewerNext?.classList.remove('show');
+
+  if (viewerPrev) viewerPrev.style.display = '';
+  if (viewerNext) viewerNext.style.display = '';
+
+  level1Animating = false;
+  level1Index = 0;
+  activeViewerSlot = 'A';
+  currentAnimal = null;
+
+  if (viewerImgA){
+    viewerImgA.className = 'viewer-photo';
+    viewerImgA.removeAttribute('src');
+    viewerImgA.style.opacity = '';
+  }
+
+  if (viewerImgB){
+    viewerImgB.className = 'viewer-photo';
+    viewerImgB.removeAttribute('src');
+    viewerImgB.style.opacity = '';
+  }
+}
+
+// =========================
+// ด่าน 1/2 : Life Cycle Viewer
+// =========================
+function hideLevel1Viewer(){
+  level1Viewer?.classList.remove('show');
+  viewerPrev?.classList.remove('show');
+  viewerNext?.classList.remove('show');
+
+  if (viewerPrev) viewerPrev.style.display = '';
+  if (viewerNext) viewerNext.style.display = '';
+
+  hideStageCaption();
+  hideSwitchAnimalBtn();
+
+  level1Animating = false;
+  if (viewerImgA) viewerImgA.className = 'viewer-photo';
+  if (viewerImgB) viewerImgB.className = 'viewer-photo';
+}
+
+function syncLevel1Nav(){
+  if (!viewerPrev || !viewerNext) return;
+
+  const atStart = level1Index <= 0;
+  const atEnd   = level1Index >= currentStageCount - 1;
+
+  viewerPrev.style.display = atStart ? 'none' : 'flex';
+  viewerNext.style.display = atEnd   ? 'none' : 'flex';
+
+  // ถึงระยะสุดท้าย → แสดงปุ่ม "เปลี่ยนสัตว์" (แทนปุ่ม "ข้อมูล" เดิม)
+  if (atEnd && isViewerLevel() && !ended && level1Viewer?.classList.contains('show')){
+    showSwitchAnimalBtn();
+  } else {
+    hideSwitchAnimalBtn();
+  }
+}
+
+// preload รูปทั้งหมดของสัตว์ปัจจุบัน
+function preloadCurrentAnimalImages(){
+  if (!currentAnimal) return;
+  getCurrentAnimalSrcs().forEach(src => preloadOne(src));
+}
+
+// token เพิ่มทุกครั้งที่โหลดสัตว์ใหม่ ใช้กัน callback animationend เก่ามาทำงานต่อ
+let __viewerToken = 0;
+
+// โหลดสัตว์ตัวหนึ่งเข้า viewer และแสดงระยะที่ 1 (พร้อม cross-fade transition)
+function loadAnimalIntoViewer(animal){
+  if (!level1Viewer || !viewerImgA || !viewerImgB || !animal) return;
+
+  const myToken = ++__viewerToken;
+
+  // ถ้ามีสัตว์ตัวก่อนแสดงผลอยู่ → cross-fade
+  const prevActiveImg = (activeViewerSlot === 'A') ? viewerImgA : viewerImgB;
+  const prevHiddenImg = (activeViewerSlot === 'A') ? viewerImgB : viewerImgA;
+  const hadPrevAnimal = !!currentAnimal && prevActiveImg.classList.contains('is-active');
+
+  const cfg = getActiveLifecycleConfig();
+  currentAnimal = animal;
+  currentStageCount = cfg.stageNames.length;
+  // ใช้ชื่อระยะเฉพาะของสัตว์ตัวนี้ ถ้าไม่มีค่อย fallback ไป default ของด่าน
+  currentStageNames = (animal.stageNames || cfg.stageNames).slice();
+
+  level1Index = 0;
+  level1Animating = false;
+
+  hideStageCaption();
+  hideSwitchAnimalBtn();
+
+  // เคลียร์รูปฝั่ง hidden ก่อน
+  prevHiddenImg.className = 'viewer-photo';
+  prevHiddenImg.style.opacity = '0';
+  prevHiddenImg.removeAttribute('src');
+
+  // preload รูปทั้งหมดของสัตว์ใหม่ไว้ก่อน
+  preloadCurrentAnimalImages();
+
+  const firstSrc = buildStageSrc(currentAnimal.key, 0);
+
+  const startFadeIn = () => {
+    if (myToken !== __viewerToken) return;
+    // ใช้ฝั่ง hidden เป็นรูปใหม่ (cross-fade)
+    const incomingImg = prevHiddenImg;
+    incomingImg.src = firstSrc;
+
+    const showAndFadeIn = () => {
+      if (myToken !== __viewerToken) return;
+      level1Animating = true; // ล็อกการกดลูกศรระหว่าง fade-in
+      incomingImg.className = 'viewer-photo is-active fade-in-animal';
+      incomingImg.style.opacity = '';
+
+      const onIn = () => {
+        if (myToken !== __viewerToken) return;
+        incomingImg.classList.remove('fade-in-animal');
+        // สลับ slot — จากนี้ incomingImg เป็น "active"
+        activeViewerSlot = (activeViewerSlot === 'A') ? 'B' : 'A';
+        level1Animating = false;
+        syncLevel1Nav();
+        scheduleStageCaption(0);
+      };
+      incomingImg.addEventListener('animationend', onIn, { once:true });
+
+      // safety fallback หาก animationend ไม่ trigger
+      setTimeout(() => {
+        if (myToken !== __viewerToken) return;
+        if (!incomingImg.classList.contains('fade-in-animal')) return;
+        incomingImg.removeEventListener('animationend', onIn);
+        onIn();
+      }, 1000);
+    };
+
+    const img = new Image();
+    img.src = firstSrc;
+    img.decode ? img.decode().catch(()=>{}).finally(showAndFadeIn) : showAndFadeIn();
+  };
+
+  if (hadPrevAnimal){
+    // มีสัตว์ตัวก่อนอยู่ → fade-out รูปเดิมก่อน แล้วค่อย fade-in รูปใหม่
+    level1Animating = true; // ล็อกการกดลูกศรระหว่าง fade-out
+    prevActiveImg.classList.remove('slide-out-left','slide-out-right','slide-in-left','slide-in-right','fade-in-animal');
+    prevActiveImg.classList.add('fade-out-animal');
+
+    const onOut = () => {
+      if (myToken !== __viewerToken) return;
+      prevActiveImg.className = 'viewer-photo';
+      prevActiveImg.style.opacity = '0';
+      prevActiveImg.removeAttribute('src');
+      // เริ่มโหลดและ fade-in รูปใหม่
+      preloadOne(firstSrc).then(startFadeIn);
+    };
+    prevActiveImg.addEventListener('animationend', onOut, { once:true });
+
+    // safety: ถ้า animationend ไม่ trigger (เช่น tab อยู่ background) จะ fallback หลัง 700ms
+    setTimeout(() => {
+      if (myToken !== __viewerToken) return;
+      if (!prevActiveImg.classList.contains('fade-out-animal')) return; // เริ่ม fade-in ไปแล้ว
+      prevActiveImg.removeEventListener('animationend', onOut);
+      onOut();
+    }, 700);
+  } else {
+    // เปิด viewer ครั้งแรก → ไม่มีรูปเก่า → fade-in อย่างเดียว
+    prevActiveImg.className = 'viewer-photo';
+    prevActiveImg.style.opacity = '0';
+    prevActiveImg.removeAttribute('src');
+    preloadOne(firstSrc).then(startFadeIn);
+  }
+
+  syncLevel1Nav();
+}
+
+function showLevel1Viewer(){
+  if (!level1Viewer || !viewerImgA || !viewerImgB) return;
+
+  choicesRow.style.display = 'none';
+  qBox.textContent = '';
+  qBox.style.display = 'none';
+  qDecor.style.display = 'none';
+  fastNext.classList.remove('show','arm-next');
+  fastNext.style.display = 'none';
+
+  level1Viewer.classList.add('show');
+  viewerPrev.classList.add('show');
+  viewerNext.classList.add('show');
+
+  // เปิด viewer ครั้งแรกของด่านนี้ → reset state ให้ loadAnimalIntoViewer รู้ว่าไม่มีสัตว์เก่า
+  currentAnimal = null;
+  activeViewerSlot = 'A';
+  viewerImgA.className = 'viewer-photo';
+  viewerImgA.style.opacity = '0';
+  viewerImgA.removeAttribute('src');
+  viewerImgB.className = 'viewer-photo';
+  viewerImgB.style.opacity = '0';
+  viewerImgB.removeAttribute('src');
+
+  // สุ่ม queue ของสัตว์ใหม่ทุกครั้งที่เริ่มด่าน → สัตว์ตัวแรกจะไม่ซ้ำเดิมแน่นอน
+  resetLifecycleQueueForCurrentLevel();
+
+  // เลือกสัตว์ตัวแรกจาก queue ที่สุ่มใหม่
+  loadAnimalIntoViewer(pickNextAnimal());
+}
+
+function updateLevel1Viewer(step){
+  if (!currentAnimal || level1Animating) return;
+  hideStageCaption();
+  hideSwitchAnimalBtn();
+
+  const oldIndex = level1Index;
+  const newIndex = oldIndex + step;
+
+  if (newIndex < 0 || newIndex >= currentStageCount) {
+    syncLevel1Nav();
+    return;
+  }
+
+  const myToken = __viewerToken;
+  level1Animating = true;
+  level1Index = newIndex;
+
+  const currentImg = (activeViewerSlot === 'A') ? viewerImgA : viewerImgB;
+  const nextImg    = (activeViewerSlot === 'A') ? viewerImgB : viewerImgA;
+
+  const goNext = step > 0;
+
+  nextImg.style.opacity = '0';
+  nextImg.className = 'viewer-photo';
+  currentImg.className = 'viewer-photo is-active';
+
+  const newSrc = buildStageSrc(currentAnimal.key, newIndex);
+
+  const startSlide = () => {
+    if (myToken !== __viewerToken) return; // ถูกเปลี่ยนสัตว์ระหว่างทาง
+    void nextImg.offsetWidth;
+
+    nextImg.style.opacity = '';
+
+    if (goNext){
+      currentImg.classList.add('slide-out-left');
+      nextImg.classList.add('slide-in-left');
+    } else {
+      currentImg.classList.add('slide-out-right');
+      nextImg.classList.add('slide-in-right');
+    }
+
+    const onDone = ()=>{
+      if (myToken !== __viewerToken) return;
+      currentImg.className = 'viewer-photo';
+      nextImg.className = 'viewer-photo is-active';
+      activeViewerSlot = (activeViewerSlot === 'A') ? 'B' : 'A';
+      level1Animating = false;
+      syncLevel1Nav();
+      scheduleStageCaption(newIndex);
+    };
+
+    nextImg.addEventListener('animationend', onDone, { once:true });
+  };
+
+  const cached = __imgMemo.get(newSrc);
+  if (cached) {
+    nextImg.src = newSrc;
+    requestAnimationFrame(startSlide);
+  } else {
+    nextImg.src = '';
+    nextImg.onload = () => { nextImg.onload = null; startSlide(); };
+    nextImg.onerror = () => { nextImg.onerror = null; startSlide(); };
+    nextImg.src = newSrc;
+  }
+}
+
+viewerPrev?.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  if (ended || !isViewerLevel()) return;
+  updateLevel1Viewer(-1);
+});
+
+viewerNext?.addEventListener('click', (e)=>{
+  e.stopPropagation();
+  if (ended || !isViewerLevel()) return;
+  updateLevel1Viewer(1);
+});
+
+
+window.addEventListener('resize', positionDecorUnderQuestion);
+window.addEventListener('load', positionDecorUnderQuestion);
+
+const qImg = document.getElementById('qImg');
+const overlay = document.getElementById('overlay');
+const finalScoreEl = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restartBtn');
+const selectLevelBtn = document.getElementById('selectLevelBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const goldWrap = document.getElementById('goldWrap');
+const clockEl = document.getElementById('clock');
+const hudRight = document.querySelector('.hud .right');
+
+function syncHudByLevel(){
+  const hideHud = isViewerLevel(); // ด่าน 1 และ 2 = viewer ไม่มีเวลา/คะแนน
+
+  if (clockEl){
+    clockEl.style.display = hideHud ? 'none' : '';
+  }
+
+  if (goldWrap){
+    goldWrap.style.display = hideHud ? 'none' : '';
+  }
+
+  if (hudRight){
+    hudRight.style.display = hideHud ? 'none' : '';
+  }
+}
+
+// ===== ตั้งข้อความคำถามแบบวิ่งแนวนอน =====
+function setQuestionMarquee(text){
+  qBox.textContent = '';
+  const span = document.createElement('span');
+  span.className = 'mq';
+  span.textContent = String(text || '').trim();
+  qBox.appendChild(span);
+
+  const speedPxPerSec = 120;
+
+  requestAnimationFrame(() => {
+    const textW = span.getBoundingClientRect().width || 0;
+    const viewW = innerWidth || qBox.clientWidth || 0;
+    const distance = textW + viewW;
+    const durSec = distance / speedPxPerSec;
+
+span.style.animationDuration = durSec + 's';
+span.classList.remove('run');  // กันค่าจากรอบก่อน
+void span.offsetWidth;         // reflow ให้แน่ใจว่า opacity/transform ถูกใช้ก่อน
+span.classList.add('run');     // ค่อย “เริ่ม” แอนิเมชันเมื่อพร้อม
+
+// จับเวอร์ชันโทเคนไว้ กัน callback เก่า
+const myTok = __mqToken;
+
+span.addEventListener('animationend', () => {
+  // ถ้าโทเคนไม่ตรง แสดงว่าโดน stop/เริ่มใหม่ไปแล้ว → ไม่ทำงานซ้ำ
+  if (myTok !== __mqToken) return;
+
+  if (!ended) {
+    awaitingAnswer = false;
+    // ฆ่าตัววิ่งให้ขาด ไม่ให้มีโอกาสเด้งกลับ
+    stopMarquee();
+    // เล่นเอฟเฟกต์ย่อเล็กลงแล้วหายกับ “ทุกช้อยส์”
+    vanishAllChoices(1200); // ← ปรับความเร็วได้ เช่น 360 / 520 ms
+    qBox.textContent = ''; // กันเหลือเศษข้อความ
+    awaitingContinue = true;
+    qDecor?.classList.add('arm-next');
+    syncFastNextUI();
+  }
+}, { once: true });
+
+
+  });
+}
+
+// เร่งข้อความคำถามให้พุ่งออกซ้ายอย่างไว
+function boostQuestionOutFast(ms=280){
+  const span = qBox.querySelector('.mq');
+  if(!span) return;
+
+  const cs = getComputedStyle(span);
+  let tx = 0;
+  const m = cs.transform || cs.webkitTransform || 'none';
+  if (m && m !== 'none') {
+    const mm = m.match(/matrix\(([^)]+)\)/);
+    if (mm) {
+      const parts = mm[1].split(',').map(parseFloat);
+      tx = parts[4] || 0; // a,b,c,d, tx, ty
+    }
+  }
+
+  span.style.animation = 'none';
+  span.style.willChange = 'transform, opacity';
+  span.style.transform = `translateX(${tx}px)`;
+  span.getBoundingClientRect(); // reflow
+
+  const r  = span.getBoundingClientRect();
+  const pr = qBox.getBoundingClientRect();
+  const delta = (pr.left - r.right) - 20; // เผื่อเลยซ้าย 20px
+
+  span.style.transition = `transform ${ms}ms linear, opacity ${ms}ms linear`;
+  span.style.transform  = `translateX(${tx + delta}px)`;
+  span.style.opacity    = '0.2';
+
+  span.addEventListener('transitionend', () => { span.remove(); }, { once:true });
+}
+
+
+// เสียง
+const hitSound = document.getElementById('hitSound');
+const winSound = document.getElementById('winSound');
+const bgm = document.getElementById('bgm');
+const selectSound = document.getElementById('selectSound');
+const wrongSound = document.getElementById('wrongSound');
+const beltSound  = document.getElementById('beltSound');
+
+
+// ตั้งค่าเป็นตัวเลขอย่างง่าย (แก้เลขได้ตามใจ โดยไม่เสี่ยง syntax พัง)
+const VOL_BGM   = 0.35;
+const VOL_SELECT= 1.00;
+const VOL_HIT   = 0.60;
+const VOL_WIN   = 0.90;
+const VOL_WRONG = 1.00;
+const VOL_BELT  = 0.80;
+
+
+// ป้องกันพังด้วยการ clamp 0..1
+function v(x){ x=Number(x); return (isFinite(x)? Math.max(0,Math.min(1,x)) : 1); }
+
+if (bgm)         bgm.volume         = v(VOL_BGM);
+if (selectSound) selectSound.volume = v(VOL_SELECT);
+if (hitSound)    hitSound.volume    = v(VOL_HIT);
+if (winSound)    winSound.volume    = v(VOL_WIN);
+if (wrongSound)  wrongSound.volume  = v(VOL_WRONG);
+if (beltSound)   beltSound.volume   = v(VOL_BELT);
+
+/* ===== Bank: รูปวัสดุ =====
+   แก้ path ให้ตรงไฟล์จริงของคุณได้ (ชั่วคราวใช้ไฟล์เดิมที่มีอยู่ก็ได้) */
+const MATERIAL_IMG = {
+  'ใบ': 'image/leaf.png',
+  'ลำต้น': 'image/stem.png',
+  'ราก': 'image/root.png',
+  'ดอก': 'image/flower.png',
+  'ผลและเมล็ด': 'image/fruit_seed.png'
+};
+
+const rand=(min,max)=>Math.floor(Math.random()*(max-min+1))+min;
+const pick=(arr)=>arr[rand(0,arr.length-1)];
+const shuffle=(arr)=>{ const A=arr.slice(); for(let i=A.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [A[i],A[j]]=[A[j],A[i]] } return A };
+
+function isGlobalMuted(){ const a=document.querySelector('audio'); return !!a && a.muted===true }
+function playSfx(el,vol){ try{ const n=el?.cloneNode(true); if(!n)return; n.volume=(typeof vol==='number')?Math.max(0,Math.min(1,vol)):(el.volume??1); n.muted=isGlobalMuted(); n.play?.(); }catch(_){} }
+function renderGold(n){ goldWrap.innerHTML = `<span class="num">${Number(n)||0}</span>`; }
+
+// นาฬิกาบน HUD
+let clockUIItv=null, clockState='idle';
+function fmtClock(ms){ const t=Math.max(0,Math.ceil(ms/1000)); const m=String(Math.floor(t/60)).padStart(2,'0'); const s=String(t%60).padStart(2,'0'); return m+':'+s; }
+function renderClock(){ const ms=(clockState==='run')?Math.max(0,(gameEndAt-performance.now())):remainingMs; clockEl.textContent=fmtClock(ms); }
+function startClockUI(){ clockState='run'; if(!clockUIItv) clockUIItv=setInterval(renderClock,250); renderClock(); }
+function pauseClockUI(){ clockState='pause'; if(clockUIItv){ clearInterval(clockUIItv); clockUIItv=null; } renderClock(); }
+function stopClockUI(){ clockState='end'; if(clockUIItv){ clearInterval(clockUIItv); clockUIItv=null; } renderClock(); }
+function resetClockUI(){ clockState='idle'; if(clockUIItv){ clearInterval(clockUIItv); clockUIItv=null; } clockEl.textContent=fmtClock(GAME_DURATION_MS); }
+
+// เอฟเฟกต์ตอบถูก/ผิด: ฝนอีโมจิดาวตก
+let __emojiMeteorTimer = null;
+
+function flyScore(ok){
+  const layer = document.getElementById('emojiMeteorLayer');
+  if (!layer) return;
+
+  layer.innerHTML = '';
+  clearTimeout(__emojiMeteorTimer);
+
+  // ชุดอีโมจิตอนตอบถูก: สัตว์ในเกม + สัญลักษณ์เชียร์
+  const correctSets = [
+    ['🦋','🐛','🐝','🐞'],          // ผีเสื้อ หนอน ผึ้ง เต่าทอง
+    ['🐔','🐤','🐥','🐣'],          // ไก่ + ลูกเจี๊ยบ + ไข่ฟัก
+    ['🐦','🦅','🐢','🐊'],          // นก/เต่า/จระเข้
+    ['🥚','🐛','🦋'],               // วัฏจักร 4 ระยะ (ไข่→หนอน→ผีเสื้อ)
+    ['🌱','🌿','🍃'],               // ต้นอ่อน/ใบเขียว
+    ['⭐','🌟','✨','🎉']           // เชียร์
+  ];
+
+  // ชุดอีโมจิตอนตอบผิด: ใบไม้แห้ง ก้อนหิน กระดูก (ธีมธรรมชาติ)
+  const wrongSets = [
+    ['🍂','🪨','🦴'],                // ใบไม้แห้ง + ก้อนหิน + กระดูก
+    ['🍂','🍁','🪨'],                // ใบไม้แห้ง 2 แบบ + ก้อนหิน
+    ['❌','💢']                       // กากบาท + โมโห
+  ];
+
+  const emojiSet = ok ? pick(correctSets) : pick(wrongSets);
+  const count = ok ? 34 : 26;
+
+  for (let i = 0; i < count; i++){
+    const e = document.createElement('div');
+    e.className = 'emoji-meteor';
+    e.textContent = pick(emojiSet);
+
+    const startX = rand(-20, 105);
+    const startY = rand(-28, 22);
+    const size = rand(26, 76);
+        const dur = rand(1600, 2300);
+        const dx = rand(240, 560);
+        const dy = rand(520, 900);
+    const rot1 = rand(-80, 80);
+    const rot2 = rot1 + rand(180, 760);
+
+    e.style.setProperty('--x', startX + 'vw');
+    e.style.setProperty('--y', startY + 'vh');
+    e.style.setProperty('--s', size + 'px');
+    e.style.setProperty('--d', dur + 'ms');
+    e.style.setProperty('--dx', dx + 'px');
+    e.style.setProperty('--dy', dy + 'px');
+    e.style.setProperty('--r', rot1 + 'deg');
+    e.style.setProperty('--rr', rot2 + 'deg');
+
+    e.style.animationDelay = rand(0, 220) + 'ms';
+
+    layer.appendChild(e);
+  }
+
+  __emojiMeteorTimer = setTimeout(()=>{
+    layer.innerHTML = '';
+  }, 2000);
+}
+
+const LEVEL1_BINDINGS = {};
+
+
+const LEVEL2_BINDINGS = {};
+
+const OBJECTS = [];
+
+// ===== ด่าน 3: คำถามที่ “ถูกได้หลายตัวเลือก” =====
+const BODY_ANSWERS = [];
+
+const LEVEL3_BANK = [];
+
+// ลำดับวัสดุอ้างอิงให้ตรงกับที่ใช้ใน LEVEL3_BANK
+const MATERIAL_ORDER = ['ของแข็ง','ของเหลว','แก๊ส'];
+
+const LEVEL4_BANK = [
+  {
+    questionText: 'สร้างอาหาร',
+    answers: [
+      { type:'material', name:'ใบ', caption:'ใบ', img: MATERIAL_IMG['ใบ'] },
+      { type:'material', name:'ลำต้น', caption:'ลำต้น', img: MATERIAL_IMG['ลำต้น'] },
+      { type:'material', name:'ราก', caption:'ราก', img: MATERIAL_IMG['ราก'] },
+      { type:'material', name:'ดอก', caption:'ดอก', img: MATERIAL_IMG['ดอก'] },
+      { type:'material', name:'ผลและเมล็ด', caption:'ผลและเมล็ด', img: MATERIAL_IMG['ผลและเมล็ด'] }
+    ],
+    correctIndices: [0]
+  },
+
+  {
+    questionText: 'ดูดซึมน้ำ',
+    answers: [
+      { type:'material', name:'ใบ', caption:'ใบ', img: MATERIAL_IMG['ใบ'] },
+      { type:'material', name:'ลำต้น', caption:'ลำต้น', img: MATERIAL_IMG['ลำต้น'] },
+      { type:'material', name:'ราก', caption:'ราก', img: MATERIAL_IMG['ราก'] },
+      { type:'material', name:'ดอก', caption:'ดอก', img: MATERIAL_IMG['ดอก'] },
+      { type:'material', name:'ผลและเมล็ด', caption:'ผลและเมล็ด', img: MATERIAL_IMG['ผลและเมล็ด'] }
+    ],
+    correctIndices: [2]
+  },
+];
+
+
+// ===== ด่าน 3 : ตอบคำถามวัฏจักรชีวิต ป.3 =====
+// ===== ด่าน 3 : ตอบคำถามวัฏจักรชีวิต ป.3 (3 ระยะ และ 4 ระยะ) =====
+// ✦ สัตว์ 3 ระยะ: ไก่ เป็ด นก เต่า จระเข้  (ไข่ → ตัวอ่อน → ตัวเต็มวัย)
+// ✦ สัตว์ 4 ระยะ: ผีเสื้อ ยุง แมลงวัน ผึ้ง มด ด้วง  (ไข่ → ตัวอ่อน → ดักแด้ → ตัวเต็มวัย)
+const LEVEL3_SOLAR_QUIZ = [
+  // ---------- ความรู้พื้นฐาน ----------
+  {
+    questionText: 'วัฏจักรชีวิตของสัตว์เริ่มต้นจากสิ่งใด',
+    correct: 'ไข่',
+    wrongs: ['ดักแด้', 'ตัวเต็มวัย', 'ตัวอ่อน', 'เมล็ด']
+  },
+  {
+    questionText: 'ระยะใดเป็นระยะสุดท้ายของวัฏจักรชีวิตของสัตว์',
+    correct: 'ตัวเต็มวัย',
+    wrongs: ['ไข่', 'ตัวอ่อน', 'ดักแด้', 'หนอน']
+  },
+  {
+    questionText: 'ระยะแรกของวัฏจักรชีวิตสัตว์ 3 ระยะ คืออะไร',
+    correct: 'ไข่',
+    wrongs: ['ดักแด้', 'ตัวอ่อน', 'ตัวเต็มวัย', 'หนอน']
+  },
+  {
+    questionText: 'ในวัฏจักร 4 ระยะ ระยะที่ต่อจากไข่ คืออะไร',
+    correct: 'ตัวอ่อน',
+    wrongs: ['ดักแด้', 'ตัวเต็มวัย', 'ผีเสื้อ', 'ผึ้ง']
+  },
+  {
+    questionText: 'ระยะใดมีเฉพาะในวัฏจักรชีวิต 4 ระยะเท่านั้น',
+    correct: 'ดักแด้',
+    wrongs: ['ไข่', 'ตัวอ่อน', 'ตัวเต็มวัย', 'ลูกอ่อน']
+  },
+  {
+    questionText: 'วัฏจักรชีวิต 3 ระยะ ต่างจาก 4 ระยะตรงไหน',
+    correct: 'ไม่มีระยะดักแด้',
+    wrongs: ['ไม่มีระยะไข่', 'ไม่มีตัวเต็มวัย', 'มีระยะมากกว่า', 'ไม่มีตัวอ่อน']
+  },
+
+  // ---------- สัตว์ 3 ระยะ ----------
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 3 ระยะ',
+    correct: 'ไก่',
+    wrongs: ['ผีเสื้อ', 'ยุง', 'ผึ้ง', 'มด']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 3 ระยะ',
+    correct: 'นก',
+    wrongs: ['ผีเสื้อ', 'แมลงวัน', 'ด้วง', 'มด']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 3 ระยะ',
+    correct: 'เป็ด',
+    wrongs: ['ยุง', 'ผึ้ง', 'ผีเสื้อ', 'ด้วง']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 3 ระยะ',
+    correct: 'เต่า',
+    wrongs: ['ผีเสื้อ', 'ผึ้ง', 'มด', 'แมลงวัน']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 3 ระยะ',
+    correct: 'จระเข้',
+    wrongs: ['ผีเสื้อ', 'ยุง', 'แมลงวัน', 'ด้วง']
+  },
+  {
+    questionText: 'ไก่มีวัฏจักรชีวิตกี่ระยะ',
+    correct: '3 ระยะ',
+    wrongs: ['2 ระยะ', '4 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'นกมีวัฏจักรชีวิตกี่ระยะ',
+    correct: '3 ระยะ',
+    wrongs: ['2 ระยะ', '4 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'เต่ามีวัฏจักรชีวิตกี่ระยะ',
+    correct: '3 ระยะ',
+    wrongs: ['2 ระยะ', '4 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'จระเข้มีวัฏจักรชีวิตกี่ระยะ',
+    correct: '3 ระยะ',
+    wrongs: ['2 ระยะ', '4 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'เป็ดมีวัฏจักรชีวิตกี่ระยะ',
+    correct: '3 ระยะ',
+    wrongs: ['2 ระยะ', '4 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'ลูกเจี๊ยบเป็นระยะใดในวัฏจักรชีวิตของไก่',
+    correct: 'ตัวอ่อน',
+    wrongs: ['ไข่', 'ดักแด้', 'ตัวเต็มวัย', 'หนอน']
+  },
+  {
+    questionText: 'ลูกนกเป็นระยะใดในวัฏจักรชีวิตของนก',
+    correct: 'ตัวอ่อน',
+    wrongs: ['ไข่', 'ดักแด้', 'ตัวเต็มวัย', 'ลูกน้ำ']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดไม่มีระยะดักแด้',
+    correct: 'ไก่',
+    wrongs: ['ผีเสื้อ', 'ยุง', 'ผึ้ง', 'มด']
+  },
+
+  // ---------- สัตว์ 4 ระยะ ----------
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 4 ระยะ',
+    correct: 'ผีเสื้อ',
+    wrongs: ['ไก่', 'นก', 'เต่า', 'จระเข้']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 4 ระยะ',
+    correct: 'ยุง',
+    wrongs: ['ไก่', 'นก', 'เต่า', 'จระเข้']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 4 ระยะ',
+    correct: 'ผึ้ง',
+    wrongs: ['ไก่', 'นก', 'เป็ด', 'เต่า']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 4 ระยะ',
+    correct: 'มด',
+    wrongs: ['ไก่', 'นก', 'เต่า', 'จระเข้']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 4 ระยะ',
+    correct: 'ด้วง',
+    wrongs: ['ไก่', 'นก', 'เป็ด', 'จระเข้']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีวัฏจักรชีวิต 4 ระยะ',
+    correct: 'แมลงวัน',
+    wrongs: ['ไก่', 'นก', 'เต่า', 'เป็ด']
+  },
+  {
+    questionText: 'ผีเสื้อมีวัฏจักรชีวิตกี่ระยะ',
+    correct: '4 ระยะ',
+    wrongs: ['2 ระยะ', '3 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'ยุงมีวัฏจักรชีวิตกี่ระยะ',
+    correct: '4 ระยะ',
+    wrongs: ['2 ระยะ', '3 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'ผึ้งมีวัฏจักรชีวิตกี่ระยะ',
+    correct: '4 ระยะ',
+    wrongs: ['2 ระยะ', '3 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'มดมีวัฏจักรชีวิตกี่ระยะ',
+    correct: '4 ระยะ',
+    wrongs: ['2 ระยะ', '3 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'ด้วงมีวัฏจักรชีวิตกี่ระยะ',
+    correct: '4 ระยะ',
+    wrongs: ['2 ระยะ', '3 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'แมลงวันมีวัฏจักรชีวิตกี่ระยะ',
+    correct: '4 ระยะ',
+    wrongs: ['2 ระยะ', '3 ระยะ', '5 ระยะ', '6 ระยะ']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีระยะดักแด้',
+    correct: 'ผีเสื้อ',
+    wrongs: ['ไก่', 'นก', 'เต่า', 'จระเข้']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีระยะดักแด้',
+    correct: 'ผึ้ง',
+    wrongs: ['ไก่', 'นก', 'เป็ด', 'เต่า']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีระยะดักแด้',
+    correct: 'มด',
+    wrongs: ['ไก่', 'นก', 'เต่า', 'จระเข้']
+  },
+  {
+    questionText: 'สัตว์ในข้อใดมีระยะดักแด้',
+    correct: 'ด้วง',
+    wrongs: ['ไก่', 'นก', 'เป็ด', 'จระเข้']
+  },
+  {
+    questionText: 'ตัวอ่อนของผีเสื้อเรียกว่าอะไร',
+    correct: 'หนอน',
+    wrongs: ['ลูกน้ำ', 'ดักแด้', 'ลูกเจี๊ยบ', 'ลูกอ๊อด']
+  },
+  {
+    questionText: 'ตัวอ่อนของยุงเรียกว่าอะไร',
+    correct: 'ลูกน้ำ',
+    wrongs: ['หนอน', 'ดักแด้', 'ลูกเจี๊ยบ', 'ลูกอ๊อด']
+  },
+  {
+    questionText: 'ดักแด้ของผีเสื้อจะเปลี่ยนเป็นอะไร',
+    correct: 'ผีเสื้อ',
+    wrongs: ['ไข่', 'หนอน', 'มด', 'ผึ้ง']
+  },
+
+  // ---------- เปรียบเทียบ 3 ระยะ กับ 4 ระยะ ----------
+  {
+    questionText: 'สัตว์ใดมีวัฏจักรชีวิตเหมือนกับนก',
+    correct: 'ไก่',
+    wrongs: ['ผีเสื้อ', 'ยุง', 'ผึ้ง', 'มด']
+  },
+  {
+    questionText: 'สัตว์ใดมีวัฏจักรชีวิตเหมือนกับผีเสื้อ',
+    correct: 'ผึ้ง',
+    wrongs: ['ไก่', 'นก', 'เต่า', 'จระเข้']
+  },
+  {
+    questionText: 'สัตว์ใดมีวัฏจักรชีวิตเหมือนกับเต่า',
+    correct: 'จระเข้',
+    wrongs: ['ผีเสื้อ', 'ยุง', 'ผึ้ง', 'ด้วง']
+  },
+  {
+    questionText: 'สัตว์ใดมีวัฏจักรชีวิตต่างจากไก่',
+    correct: 'ผีเสื้อ',
+    wrongs: ['นก', 'เป็ด', 'เต่า', 'จระเข้']
+  },
+  {
+    questionText: 'ข้อใดเป็นสัตว์ 3 ระยะทั้งหมด',
+    correct: 'ไก่ เป็ด นก',
+    wrongs: ['ผีเสื้อ ยุง มด', 'ไก่ ผีเสื้อ มด', 'นก ผึ้ง ด้วง', 'เต่า ยุง ผึ้ง']
+  },
+  {
+    questionText: 'ข้อใดเป็นสัตว์ 4 ระยะทั้งหมด',
+    correct: 'ผีเสื้อ ผึ้ง มด',
+    wrongs: ['ไก่ เป็ด นก', 'เต่า จระเข้ ไก่', 'นก เต่า ผึ้ง', 'จระเข้ ยุง ไก่']
+  },
+  {
+    questionText: 'ข้อใดเป็นสัตว์ 3 ระยะ',
+    correct: 'เต่า จระเข้',
+    wrongs: ['ผีเสื้อ ยุง', 'ผึ้ง มด', 'แมลงวัน ด้วง', 'มด ยุง']
+  },
+];
+
+function drawLevel3SolarQuiz(){
+  if (usedLevel3Questions.length >= LEVEL3_SOLAR_QUIZ.length) {
+    usedLevel3Questions = [];
+  }
+
+  const remainingQuestions = LEVEL3_SOLAR_QUIZ.filter(q => !usedLevel3Questions.includes(q));
+  const q = pick(remainingQuestions);
+  usedLevel3Questions.push(q);
+
+  const wrong = pick(q.wrongs);
+  const answers = shuffle([
+    { name: q.correct, caption: q.correct, isCorrect: true },
+    { name: wrong, caption: wrong, isCorrect: false }
+  ]);
+
+  return {
+    questionText: q.questionText,
+    answers,
+    correctIndex: answers.findIndex(a => a.isCorrect)
+  };
+}
+
+function drawLevel3(){
+  const q = pick(LEVEL3_BANK);
+
+  const allAnswers = q.answers.map((a, idx) => ({
+    ...a,
+    _originalIndex: idx
+  }));
+
+  // 1) สุ่มคำตอบถูกมา 1 ตัวจาก correctIndices
+  const correctPool = allAnswers.filter(a => q.correctIndices.includes(a._originalIndex));
+  const pickedCorrect = pick(correctPool);
+
+  // 2) สุ่มคำตอบผิดมา 2 ตัวจากที่เหลือ
+  const wrongPool = allAnswers.filter(a => !q.correctIndices.includes(a._originalIndex));
+  const pickedWrong = shuffle(wrongPool).slice(0, 2);
+
+  // 3) รวมให้เหลือแค่ 3 ตัวเลือก แล้วสุ่มตำแหน่ง
+  const answers = shuffle([pickedCorrect, ...pickedWrong]);
+
+  // 4) หา index ใหม่ของคำตอบถูก หลัง shuffle
+  const correctIndices = answers
+    .map((a, pos) => q.correctIndices.includes(a._originalIndex) ? pos : -1)
+    .filter(pos => pos !== -1);
+
+  return {
+    questionText: q.questionText,
+    answers: answers.map(({ _originalIndex, ...rest }) => rest),
+    correctIndices
+  };
+}
+
+function drawLevel4(){
+  // ถ้าใช้ครบทุกข้อแล้ว ค่อยรีใหม่
+  if (usedLevel4Questions.length >= LEVEL4_BANK.length) {
+    usedLevel4Questions = [];
+  }
+
+  // เลือกเฉพาะข้อที่ยังไม่เคยใช้
+  const remainingQuestions = LEVEL4_BANK.filter(q => !usedLevel4Questions.includes(q));
+  const q = pick(remainingQuestions);
+
+  // จำว่าข้อนี้ถูกใช้แล้ว
+  usedLevel4Questions.push(q);
+
+  const allAnswers = q.answers.map((a, idx) => ({
+    ...a,
+    _originalIndex: idx
+  }));
+
+  // สุ่มคำตอบถูกมา 1 ตัว
+  const correctPool = allAnswers.filter(a => q.correctIndices.includes(a._originalIndex));
+  const pickedCorrect = pick(correctPool);
+
+  // สุ่มคำตอบผิดมา 2 ตัว
+  const wrongPool = allAnswers.filter(a => !q.correctIndices.includes(a._originalIndex));
+  const pickedWrong = shuffle(wrongPool).slice(0, 2);
+
+  // รวมให้เหลือ 3 ตัวเลือก
+  const answers = shuffle([pickedCorrect, ...pickedWrong]);
+
+  const correctIndices = answers
+    .map((a, pos) => q.correctIndices.includes(a._originalIndex) ? pos : -1)
+    .filter(pos => pos !== -1);
+
+  return {
+    questionText: q.questionText,
+    answers: answers.map(({ _originalIndex, ...rest }) => rest),
+    correctIndices
+  };
+}
+
+// ด่าน 1: วัสดุ -> เลือกวัตถุ (คำตอบถูกมาจาก LEVEL1_BINDINGS, ตัวหลอกจาก OBJECTS)
+function drawLevel1(){
+  const keys = Object.keys(LEVEL1_BINDINGS);
+  const material = pick(keys);
+
+  const correct = pick(LEVEL1_BINDINGS[material]);
+
+  // ตัวหลอกจากวัสดุอื่น
+  const fakes = shuffle(
+      keys.filter(k => k !== material)
+  ).slice(0,2).map(k => pick(LEVEL1_BINDINGS[k]));
+
+  const candidates = shuffle([
+      { ...correct, _ok:true },
+      ...fakes
+  ]);
+  const correctIndex = candidates.findIndex(c => c._ok);
+
+  return {
+    questionText: material,
+    answers: candidates.map(c => ({
+      type: 'object',
+      name: c.caption,
+      img:  c.img,
+      tag:  material,
+      caption: c.caption
+    })),
+    correctIndex
+  };
+}
+
+function drawLevel2(){
+  // ถ้าใช้ครบทุกข้อแล้ว ค่อยรีใหม่
+  if (usedLevel2Questions.length >= OBJECTS.length) {
+    usedLevel2Questions = [];
+  }
+
+  // เลือกเฉพาะข้อที่ยังไม่เคยใช้
+  const remainingObjects = OBJECTS.filter(o => !usedLevel2Questions.includes(o));
+  const obj = pick(remainingObjects);
+
+  // จำว่าข้อนี้ถูกใช้แล้ว
+  usedLevel2Questions.push(obj);
+
+  const question = obj.name;
+  const correctMats = obj.materials || [obj.material];
+
+  // สุ่มคำตอบถูกมา 1 ตัวจากตัวที่ยอมรับได้
+  const pickedCorrectMat = pick(correctMats);
+
+  const correct = {
+    img: MATERIAL_IMG[pickedCorrectMat],
+    caption: pickedCorrectMat
+  };
+
+  const mats = Object.keys(MATERIAL_IMG).filter(m => !correctMats.includes(m));
+  const distract = shuffle(mats)
+    .slice(0, 2)
+    .map(m => ({
+      img: MATERIAL_IMG[m],
+      caption: m
+    }));
+
+  const candidates = shuffle([
+    { img: correct.img, caption: correct.caption, _ok: true },
+    ...distract
+  ]);
+
+  const correctIndex = candidates.findIndex(c => c._ok);
+
+  return {
+    questionText: question,
+    answers: candidates.map(c => ({
+      type: 'material',
+      name: c.caption,
+      img: c.img,
+      tag: c.caption,
+      caption: c.caption
+    })),
+    correctIndex
+  };
+}
+
+// =========================
+// พรีโหลดรูปภาพ (รองรับ fail แล้วไปต่อ)
+// =========================
+const __imgMemo = new Map();
+function preloadOne(src, timeout=8000, tries=2){
+  if(!src) return Promise.resolve(false);
+  if(__imgMemo.has(src)) return __imgMemo.get(src);
+  const runner = (attempt)=> new Promise(resolve=>{
+    const img = new Image(); let done=false;
+    const settle = ok=>{ if(done) return; done=true;
+      // ถ้าโหลดสำเร็จ decode เพื่อให้ GPU พร้อม (non-blocking)
+      if(ok && img.decode){ img.decode().catch(()=>{}).finally(()=>resolve(true)); }
+      else { resolve(ok); }
+    };
+    const t = setTimeout(()=>{ img.onload=img.onerror=null; settle(false) }, timeout);
+    img.onload = ()=>{ clearTimeout(t); settle(true) };
+    img.onerror= ()=>{ clearTimeout(t); (attempt<tries)? setTimeout(()=>runner(attempt+1).then(resolve), 250): settle(false) };
+    img.decoding='async'; img.loading='eager'; img.referrerPolicy='no-referrer'; img.src=src;
+  });
+  const p=runner(0); __imgMemo.set(src,p); return p;
+}
+async function preloadInBatches(urls,batch=16,onProgress=()=>{}){
+  const list=[...new Set(urls.filter(Boolean))]; let done=0;
+  for(let i=0;i<list.length;i+=batch){
+    const chunk=list.slice(i,i+batch);
+    await Promise.allSettled(chunk.map(u=>preloadOne(u)));
+    done+=chunk.length; onProgress(Math.round((done/list.length)*100));
+    await new Promise(r=>setTimeout(r,60));
+  }
+}
+
+function collectAllGameImages(){
+  const urls = new Set();
+  // ด่าน 1: รูปสัตว์ที่มีวัฏจักรชีวิต 3 ระยะ
+  LIFECYCLE_3STEP.animals.forEach(a => {
+    for (let i = 1; i <= LIFECYCLE_3STEP.stageNames.length; i++){
+      urls.add(`${LIFECYCLE_3STEP.folder}/${a.key}${i}.png`);
+    }
+  });
+  // ด่าน 2: รูปสัตว์ที่มีวัฏจักรชีวิต 4 ระยะ
+  LIFECYCLE_4STEP.animals.forEach(a => {
+    for (let i = 1; i <= LIFECYCLE_4STEP.stageNames.length; i++){
+      urls.add(`${LIFECYCLE_4STEP.folder}/${a.key}${i}.png`);
+    }
+  });
+
+  [
+    "image/background2.png",
+    "image/background3.png",
+    "image/welcomepage.png",
+    "image/banner2.png",
+    "image/guide.png",
+    "image/button1.png",
+    "image/button2.png",
+    "image/state1.png",
+    "image/state2.png",
+    "image/state3.png",
+    "objects2/object0.png",
+  ].forEach(src => urls.add(src));
+
+  // ดึงจาก MATERIAL_IMG ทั้งก้อน
+  if (typeof MATERIAL_IMG !== "undefined") {
+    Object.values(MATERIAL_IMG).forEach(src => {
+      if (src) urls.add(src);
+    });
+  }
+
+  if (typeof LEVEL1_BINDINGS !== "undefined") {
+    Object.values(LEVEL1_BINDINGS).forEach(arr => {
+      (arr || []).forEach(o => {
+        if (o && o.img) urls.add(o.img);
+      });
+    });
+  }
+
+  // ด่าน 2 (เก่า) — เผื่อยังใช้
+  if (typeof LEVEL2_BINDINGS !== "undefined") {
+    Object.values(LEVEL2_BINDINGS).forEach(o => {
+      if (o && o.img) urls.add(o.img);
+    });
+  }
+
+  // ด่าน 3
+  if (typeof LEVEL3_BANK !== "undefined") {
+    LEVEL3_BANK.forEach(q => {
+      (q.answers || []).forEach(o => {
+        if (o && o.img) urls.add(o.img);
+      });
+    });
+  }
+
+  // ด่าน 4
+  if (typeof LEVEL4_BANK !== "undefined") {
+    LEVEL4_BANK.forEach(q => {
+      (q.answers || []).forEach(o => {
+        if (o && o.img) urls.add(o.img);
+      });
+    });
+  }
+
+  return [...urls].filter(Boolean).map(p => new URL(p, location.href).href);
+}
+
+function bindPreloadProgress(){
+  const bar  = document.getElementById('preloadBar');
+  const text = document.getElementById('preloadText');
+  return (pct)=>{ if(bar) bar.style.width=pct+'%'; if(text) text.textContent='กำลังเตรียมข้อมูล… '+pct+'%'; };
+}
+async function runGlobalPreload(){
+  const urls=collectAllGameImages(); const progress=bindPreloadProgress();
+  try{ await preloadInBatches(urls,18,(p)=>progress(p)) }finally{
+    document.getElementById('preloadOverlay')?.remove();
+    window.__ALL_IMAGES_READY__=true;
+  }
+}
+window.addEventListener('load', runGlobalPreload);
+
+// =========================
+// สร้างรอบคำถาม/แสดงตัวเลือก
+// =========================
+function clearChoices(){
+  while(choicesRow.firstChild) choicesRow.removeChild(choicesRow.firstChild);
+}
+
+// ==== STOP marquee safely (ฆ่าแอนิเมชัน + กัน callback เก่า) ====
+let __mqToken = 0;
+function stopMarquee(){
+  __mqToken++; // ทำให้ callback เก่ากลายเป็นโมฆะ
+  const span = qBox.querySelector('.mq');
+  if (!span) return;
+  span.style.animation = 'none';
+  span.style.transition = 'none';
+  span.style.opacity = '0';
+  span.remove();
+}
+
+// ==== เล่นเอฟเฟกต์ย่อเล็กลงแล้วเคลียร์ทุกช้อยส์ ====
+function vanishAllChoices(ms = 420){
+  choicesRow.style.setProperty('--vanish-ms', (ms|0)+'ms');
+  const wraps = [...choicesRow.querySelectorAll('.option-wrap')];
+  if (!wraps.length){ clearChoices(); return; }
+
+  // ล้างคลาสที่อาจชน transition/animation เดิม แล้วบังคับรีโฟลว์ก่อนใส่ .is-vanish
+  wraps.forEach(w=>{
+    w.classList.remove('chosen','faded','is-chosen','is-faded');
+    const c = w.querySelector('.option.circle');
+    if (c){
+      c.classList.remove('pre-in','go-in','pick-pop','slide-up-out');
+      // รีโฟลว์เพื่อให้อนิเมชันใหม่เริ่มแน่ๆ
+      void c.offsetWidth;
+    }
+  });
+
+  // ใส่อนิเมชัน “ย่อแล้วหาย” ให้ทั้งกล่อง
+  requestAnimationFrame(()=>{
+    wraps.forEach(w=> w.classList.add('is-vanish'));
+  });
+
+  // เคลียร์จริงหลังอนิเมชันจบ
+  setTimeout(()=>{ clearChoices(); }, ms);
+}
+
+
+function randomRing(el){
+  const colors = [
+    ['#ef4444','#f59e0b'], ['#3b82f6','#06b6d4'], ['#22c55e','#84cc16'],
+    ['#a855f7','#ec4899'], ['#f97316','#eab308']
+  ];
+  const [a,b]=pick(colors);
+  el.style.setProperty('--ring', `linear-gradient(130deg, ${a}, ${b})`);
+}
+
+function spawnRow3(answers, correctIndex, questionText){
+  clearChoices();
+
+  answers.forEach((ans,idx)=>{
+    // กล่องครอบ: เพื่อวาง "วงกลม" + "แคปชันใต้รูป"
+    const wrap = document.createElement('div');
+    wrap.className = 'option-wrap';
+
+    // ปุ่มวงกลม (ของเดิม)
+    const el = document.createElement('div');
+    el.className = 'option circle pre-in';
+    randomRing(el);
+
+    const im = document.createElement('img');
+    im.alt = (ans.type==='object' ? 'วัตถุ' : 'วัสดุ') + ' : ' + (ans.name||'');
+    im.src = ans.img || '';
+    el.appendChild(im);
+
+    // dataset สำหรับตรวจถูก/ผิด
+    el.dataset.correct = String(idx===correctIndex);
+    el.dataset.index = String(idx);
+    el.addEventListener('click', ()=>tryAnswer(el));
+
+    // แคปชันใต้รูป (ไม่ผูกกับคำถาม)
+    const cap = document.createElement('div');
+    cap.className = 'opt-cap';
+    cap.textContent = String(ans.caption || ans.name || '');
+
+    // ประกอบเข้าด้วยกัน
+    wrap.appendChild(el);
+    wrap.appendChild(cap);
+    choicesRow.appendChild(wrap);
+
+    // เข้าเฟรมทีละปุ่ม
+    setTimeout(()=>{ el.classList.add('go-in'); }, 80*idx);
+  });
+
+  // คำถามล่างจอให้ใช้ตัวที่ส่งมาโดยตรง
+  setQuestionMarquee(String(questionText || ''));
+}
+
+// ===== ด่าน 3: สร้าง 3 ปุ่ม + รองรับหลายคำตอบถูก =====
+function spawnRow3Multi(answers, correctIndices, questionText){
+  clearChoices();
+
+  __multiCorrectSet = new Set(correctIndices);
+  remainingCorrect = new Set(correctIndices);
+
+  answers.forEach((ans, idx)=>{
+    const wrap = document.createElement('div');
+    wrap.className = 'option-wrap';
+
+    const el = document.createElement('div');
+    el.className = 'option circle pre-in';
+    randomRing(el);
+
+    const im = document.createElement('img');
+    im.alt = (ans.type==='object' ? 'วัตถุ' : 'วัสดุ') + ' : ' + (ans.name||'');
+    im.src = ans.img || '';
+    el.appendChild(im);
+
+    el.dataset.index = String(idx);
+    el.addEventListener('click', ()=>tryAnswerMulti(el));
+
+    const cap = document.createElement('div');
+    cap.className = 'opt-cap';
+    cap.textContent = String(ans.caption || ans.name || '');
+
+    wrap.appendChild(el);
+    wrap.appendChild(cap);
+    choicesRow.appendChild(wrap);
+
+    setTimeout(()=>{ el.classList.add('go-in'); }, 80*idx);
+  });
+
+  setQuestionMarquee(String(questionText || ''));
+}
+
+// ===== ตรวจคำตอบแบบหลายตัวถูก =====
+function tryAnswerMulti(el){
+  if (ended || !awaitingAnswer) return;
+
+  const idx  = Number(el.dataset.index);
+  const ok   = __multiCorrectSet.has(idx);
+  const wrap = el.closest('.option-wrap');
+
+  // กันกดซ้ำ + ปิดรับคำตอบทันที
+  if (el.classList.contains('answered')) return;
+  el.classList.add('answered');
+  awaitingAnswer = false;
+
+  // เอฟเฟกต์เลือก + เร่งคำถามออกซ้าย + เฟดตัวอื่น
+  boostQuestionOutFast(280);
+  [...choicesRow.querySelectorAll('.option-wrap')].forEach(w=>{
+    if (w === wrap) w.classList.add('is-chosen');
+    else            w.classList.add('is-faded');
+  });
+
+  // คะแนน + เสียง + แฟลช
+  if (ok){
+    score += 1;
+    playSfx(selectSound, VOL_SELECT);
+    playSfx(hitSound,    VOL_HIT);
+    flyScore(true);
+  }else{
+    score -= 1;
+    playSfx(wrongSound, VOL_WRONG);
+    flyScore(false);
+  }
+  renderGold(score);
+
+  // เคลียร์จอแล้วรอไปข้อถัดไป (ผ่านปุ่ม NEXT โปร่งใส)
+  setTimeout(()=>{
+    clearChoices();
+    qBox.textContent = '';
+    awaitingContinue = true;
+    qDecor?.classList.add('arm-next');
+    syncFastNextUI();
+  }, 520);
+
+  // ถ้าต้องการ "ไปข้อถัดไปเองเลย" ให้แทนบล็อกด้านบนด้วย:
+  // setTimeout(()=> { clearChoices(); qBox.textContent=''; nextRound(); }, 520);
+}
+
+function spawnLevel3Choice2(answers, correctIndex, questionText){
+  clearChoices();
+
+  qBox.style.display = '';
+  qBox.innerHTML = `<span class="mq run">${questionText}</span>`;
+
+// 🔥 หา element .mq แล้วย่อฟอนต์
+const mq = qBox.querySelector('.mq');
+
+requestAnimationFrame(()=>{
+  fitTextOneLine(mq, 72, 24);
+});
+
+  choicesRow.innerHTML = '';
+  choicesRow.style.display = '';
+  choicesRow.style.pointerEvents = '';
+
+  answers.forEach((ans, i)=>{
+    const wrap = document.createElement('div');
+    wrap.className = 'option-wrap';
+
+    const btn = document.createElement('button');
+    btn.className = 'option circle pre-in';
+    btn.type = 'button';
+    btn.dataset.correct = String(i === correctIndex);
+    btn.dataset.answer = ans.name || ans.caption || '';
+    btn.textContent = ans.caption || ans.name || '';
+        randomRing(btn);
+    btn.addEventListener('click', ()=>tryAnswer(btn));
+
+    wrap.appendChild(btn);
+    choicesRow.appendChild(wrap);
+
+    requestAnimationFrame(()=>{
+      setTimeout(()=>{
+        btn.classList.remove('pre-in');
+        btn.classList.add('go-in');
+      }, i * 110);
+    });
+  });
+}
+
+function tryAnswer(el){
+  if (ended || !awaitingAnswer) return;
+
+  awaitingAnswer = false;
+  choicesRow.style.pointerEvents = 'none';
+
+  const ok = (el.dataset.correct === 'true');
+
+  if (ok) {
+    playSfx(selectSound, VOL_SELECT);
+    playSfx(hitSound, VOL_HIT);
+  } else {
+    playSfx(wrongSound, VOL_WRONG);
+  }
+
+  score += ok ? 1 : -1;
+  renderGold(score);
+  flyScore(ok);
+
+  // เฉพาะด่าน 3: เฟดเอาท์ทุกอย่างในจอ รวมกล่องคำถามด้วย
+if (window.currentLevel === 3) {
+  [...choicesRow.querySelectorAll('.option-wrap, .option.circle')].forEach(n=>{
+    n.classList.remove(
+      'pre-in','go-in',
+      'pick-pop','slide-up-out',
+      'chosen','faded',
+      'is-chosen','is-faded','is-vanish'
+    );
+    n.style.animation = 'none';
+    n.style.transition = 'none';
+  });
+
+  qBox.classList.add('level3-fade-out');
+  choicesRow.classList.add('level3-fade-out');
+
+    setTimeout(()=>{
+      choicesRow.style.pointerEvents = '';
+      clearChoices();
+      qBox.textContent = '';
+
+      qBox.classList.remove('level3-fade-out');
+      choicesRow.classList.remove('level3-fade-out');
+
+      if (!ended && window.currentLevel === 3) {
+        nextRound();
+      }
+    }, 3000);
+
+    return;
+  }
+
+  // ด่านอื่น: ใช้ระบบเดิม
+  boostQuestionOutFast(280);
+
+  const chosenWrap = el.closest('.option-wrap');
+
+  [...choicesRow.querySelectorAll('.option-wrap')].forEach(w=>{
+    const circle = w.querySelector('.option.circle');
+    circle?.classList.remove('go-in', 'pre-in', 'pick-pop', 'slide-up-out');
+
+    if (w === chosenWrap) {
+      w.classList.add('is-chosen');
+    } else {
+      w.classList.add('is-faded');
+    }
+  });
+
+  setTimeout(()=>{
+    choicesRow.style.pointerEvents = '';
+    clearChoices();
+    qBox.textContent = '';
+
+    awaitingContinue = true;
+    qDecor?.classList.add('arm-next');
+    syncFastNextUI();
+  }, 520);
+}
+
+// ดึงโจทย์ตามด่าน
+function drawQuestion(){
+  if (isViewerLevel()) return null; // ด่าน 1, 2 ใช้ viewer ไม่ใช้ระบบคำถาม
+  if (window.currentLevel === 3) return drawLevel3SolarQuiz();
+  if (window.currentLevel === 4) return drawLevel4();
+  return drawLevel1();
+}
+
+function nextRound(){
+  if(ended) return;
+
+  clearChoices();
+  awaitingAnswer = false;
+  qBox.classList.remove('go-x','pre-x');
+  stopMarquee();
+
+  // ===== ด่าน 1, 2 : โหมดดูภาพวัฏจักรชีวิต =====
+  if (isViewerLevel()){
+    showLevel1Viewer();
+    return;
+  }
+
+  // ด่านอื่นกลับไปใช้ระบบเดิม
+  hideLevel1Viewer();
+  qBox.style.display = '';
+  qDecor.style.display = '';
+  choicesRow.style.display = '';
+
+  const q = drawQuestion();
+
+if (window.currentLevel === 3){
+  spawnLevel3Choice2(q.answers, q.correctIndex, q.questionText);
+} else if (window.currentLevel === 4){
+  spawnRow3Multi(q.answers, q.correctIndices, q.questionText);
+} else {
+  spawnRow3(q.answers, q.correctIndex, q.questionText);
+}
+
+  awaitingAnswer = true;
+}
+
+// =========================
+// วงจรเกม: เริ่ม/หยุด/สรุป
+// =========================
+function scheduleGameTimer(ms){
+  clearTimeout(gameTimerId);
+  gameTimerId=setTimeout(()=>{ if(!ended) endLevel() }, Math.max(0,ms|0));
+}
+function startGameTimer(){
+  remainingMs = GAME_DURATION_MS;
+  gameEndAt = performance.now() + remainingMs;
+  scheduleGameTimer(remainingMs);
+  startClockUI();
+}
+function pauseGameTimer(){
+  if(gameTimerId){
+    remainingMs=Math.max(0,gameEndAt - performance.now());
+    clearTimeout(gameTimerId); gameTimerId=null;
+    pauseClockUI();
+  }
+}
+function resumeGameTimer(){
+  if(remainingMs>0 && !ended){
+    gameEndAt = performance.now() + remainingMs;
+    scheduleGameTimer(remainingMs);
+    startClockUI();
+  }
+}
+
+function stopGameTimerHard(){
+  clearTimeout(gameTimerId);
+  gameTimerId = null;
+  gameEndAt = 0;
+  remainingMs = GAME_DURATION_MS;
+  stopClockUI();
+  if (clockEl) clockEl.textContent = '02:00';
+}
+
+function startGame(){
+  document.body.classList.add('in-game');
+  running = true;
+  ended = false;
+  paused = false;
+
+  overlay.style.visibility = 'hidden';
+  overlay.style.opacity = '0';
+
+  score = 0;
+  round = 0;
+  renderGold(score);
+
+  awaitingContinue = false;
+  qDecor?.classList.remove('arm-next');
+  syncFastNextUI();
+
+  bgm?.play?.().catch(()=>{});
+
+  hideLevel1Viewer();
+  syncHudByLevel();
+
+  if (isViewerLevel()){
+    // ด่าน 1, 2 = viewer ไม่มีระบบเวลาเลย
+    stopGameTimerHard();
+
+    qBox.textContent = '';
+    qBox.style.display = 'none';
+    qDecor.style.display = 'none';
+    choicesRow.style.display = 'none';
+    fastNext.classList.remove('show','arm-next');
+    fastNext.style.display = 'none';
+  } else {
+    // ด่านอื่นใช้เวลาเหมือนเดิม
+    startGameTimer();
+
+    qBox.style.display = '';
+    qDecor.style.display = '';
+    choicesRow.style.display = '';
+    fastNext.style.display = '';
+  }
+
+  // รอให้ภาพพร้อมก่อนเริ่มรอบแรก (ถ้ายังไม่พร้อม)
+  if (window.__ALL_IMAGES_READY__) {
+    nextRound();
+  } else {
+    (async () => {
+      while (!window.__ALL_IMAGES_READY__) {
+        await new Promise(r => setTimeout(r, 80));
+      }
+      if (!ended) nextRound();
+    })();
+  }
+}
+
+
+
+function endLevel(){
+  ended=true; running=false; pauseGameTimer(); stopClockUI();
+  finalScoreEl.textContent=String(score);
+  document.getElementById('scoreBadge').textContent = score<=5?'❤️':score<=10?'🥇':'🏆';
+  bgm?.pause?.(); playSfx(winSound);
+
+  // ✅ ล้างทุกอย่างค้างก่อน overlay สรุปคะแนนขึ้น
+  qBox.textContent = '';
+  qBox.classList.remove('go-x','pre-x','level3-fade-out');
+  stopMarquee();
+  clearChoices();
+
+  // ซ่อน UI ที่อาจค้าง (แถบสีฟ้าตัวเลือก, ปุ่ม next, decor)
+  choicesRow?.classList.remove('level3-fade-out');
+  if (choicesRow) choicesRow.style.display = 'none';
+  if (qBox)       qBox.style.display       = 'none';
+  if (qDecor)     qDecor.style.display     = 'none';
+  if (fastNext){
+    fastNext.classList.remove('show','arm-next');
+    fastNext.style.display = 'none';
+  }
+
+  // ซ่อน viewer ด่าน 1/2 ถ้าค้างอยู่
+  hideLevel1Viewer();
+
+  overlay.style.visibility='visible'; overlay.style.opacity='1';
+}
+
+function resetState(){
+  clearChoices();
+  awaitingAnswer=false;
+  awaitingContinue=false;
+  qDecor?.classList.remove('arm-next');
+  syncFastNextUI();
+
+  qBox.textContent='';
+  qBox.classList.remove('go-x','pre-x');
+
+  score=0;
+  renderGold(score);
+  remainingMs=GAME_DURATION_MS;
+  stopClockUI();
+
+  usedLevel2Questions = [];
+  usedLevel3Questions = [];
+  usedLevel4Questions = [];
+
+  if (clockEl) clockEl.textContent='02:00';
+
+  // คืน HUD กลับไว้ก่อน เผื่อเปลี่ยนไปเล่นด่านอื่น
+  if (clockEl) clockEl.style.display = '';
+  if (goldWrap) goldWrap.style.display = '';
+  if (hudRight) hudRight.style.display = '';
+
+  ended=true;
+  running=false;
+  paused=false;
+}
+
+// ปุ่มควบคุม
+pauseBtn?.addEventListener('click', ()=>{
+  if(!running || ended) return;
+
+  if(!paused){
+    paused = true;
+    if (!isViewerLevel()) pauseGameTimer();
+    pauseBtn.textContent = '▶️ ต่อ';
+  } else {
+    paused = false;
+    if (!isViewerLevel()) resumeGameTimer();
+    pauseBtn.textContent = '⏸ หยุด';
+    bgm?.play?.().catch(()=>{});
+  }
+});
+
+document.getElementById('quickRestart')?.addEventListener('click', ()=>{
+
+// ถ้ากำลังอยู่หน้าเริ่ม/นับถอยหลัง ให้ปิดและหยุดนับทันที
+if (window.__countdownItv) {
+  clearInterval(window.__countdownItv);
+  window.__countdownItv = null;
+}
+const startScreen  = document.getElementById('startScreen');
+const countdownEl  = document.getElementById('countdown');
+const startBtn     = document.getElementById('startBtn');
+if (startScreen)  startScreen.style.display = 'none';
+if (countdownEl){ countdownEl.style.display='none'; countdownEl.textContent='3'; }
+if (startBtn){ startBtn.style.display='inline-block'; startBtn.disabled=false; startBtn.style.pointerEvents='auto'; }
+document.body.classList.remove('prestart');
+document.getElementById('questionBox')?.querySelector('.mq')?.style.setProperty('animation-play-state', paused ? 'paused' : 'running');
+  document.getElementById('landing').classList.remove('hide');
+
+  overlay.style.visibility='hidden'; overlay.style.opacity='0';
+  clearLevel1Everything(); // ✅ เคลียร์ viewer (ด่าน 1/2) ก่อน
+  resetState(); document.body.classList.remove('in-game');
+});
+
+restartBtn.addEventListener('click', ()=>{ overlay.style.visibility='hidden'; overlay.style.opacity='0'; resetState(); startGame(); bgm.currentTime=0; bgm.play().catch(()=>{}); });
+selectLevelBtn.addEventListener('click', ()=>{
+// ถ้ากำลังอยู่หน้าเริ่ม/นับถอยหลัง ให้ปิดและหยุดนับทันที
+if (window.__countdownItv) {
+  clearInterval(window.__countdownItv);
+  window.__countdownItv = null;
+}
+const startScreen  = document.getElementById('startScreen');
+const countdownEl  = document.getElementById('countdown');
+const startBtn     = document.getElementById('startBtn');
+if (startScreen)  startScreen.style.display = 'none';
+if (countdownEl){ countdownEl.style.display='none'; countdownEl.textContent='3'; }
+if (startBtn){ startBtn.style.display='inline-block'; startBtn.disabled=false; startBtn.style.pointerEvents='auto'; }
+document.body.classList.remove('prestart');
+
+overlay.style.visibility='hidden';
+overlay.style.opacity='0';
+
+clearLevel1Everything(); // ✅ เคลียร์ด่าน 1 ให้หมดก่อนกลับเมนู
+
+resetState();
+document.body.classList.remove('in-game');
+document.body.classList.remove('level2-mode','level3-mode','level4-mode');
+
+document.getElementById('landing').classList.remove('hide');
+bgm.currentTime=0;
+bgm.play().catch(()=>{});
+});
+
+// =========================
+// Welcome → Landing → Start
+// =========================
+(function(){
+  const welcome = document.getElementById('welcome');
+  const enterBtn = document.getElementById('enterBtn');
+  const landing = document.getElementById('landing');
+  enterBtn.addEventListener('click', async ()=>{
+    while(!window.__ALL_IMAGES_READY__) await new Promise(r=>setTimeout(r,120));
+    welcome.classList.add('hide'); landing.classList.remove('hide'); bgm?.play?.().catch(()=>{});
+  });
+})();
+
+(function(){
+  const landing = document.getElementById('landing');
+  const startScreen = document.getElementById('startScreen');
+  const guideScreen = document.getElementById('guideScreen');
+  const startBtn = document.getElementById('startBtn');
+  const countdownEl = document.getElementById('countdown');
+
+  document.querySelectorAll('.levelBtn').forEach(btn=>{
+    if(btn.id==='guideBtn') return;
+    btn.addEventListener('click', ()=>{
+      window.currentLevel = Number(btn.dataset.level||1);
+
+      // ด่าน 2 ใหม่ = viewer 4 ระยะ ไม่ต้องใช้ level2-mode (ของระบบ quiz เดิม)
+      document.body.classList.remove('level2-mode');
+
+document.body.classList.remove('level3-mode');
+if (window.currentLevel === 3) {
+  document.body.classList.add('level3-mode');
+}
+
+    document.body.classList.remove('level4-mode');
+    if(window.currentLevel === 4){
+      document.body.classList.add('level4-mode');
+    }
+
+      landing.classList.add('hide');
+      document.body.classList.add('prestart');
+      startScreen.style.display='flex';
+      // สรุปภารกิจตามด่าน
+      const st = document.getElementById('startTitle');
+
+
+st.textContent =
+  (window.currentLevel === 1)
+    ? 'ภารกิจ : เรียนรู้วัฏจักรชีวิตของสัตว์ (3 ระยะ)'
+    : (window.currentLevel === 2)
+      ? 'ภารกิจ : เรียนรู้วัฏจักรชีวิตของสัตว์ (4 ระยะ)'
+      : (window.currentLevel === 3)
+        ? 'ภารกิจ : ตอบคำถามวัฏจักรชีวิต'
+        : 'ภารกิจ : วัฏจักรชีวิต';
+
+
+      // ปุ่มเริ่ม / นับถอยหลัง
+      startBtn.style.display='inline-block'; startBtn.disabled=false; startBtn.style.pointerEvents='auto';
+      countdownEl.style.display='none'; countdownEl.textContent='3';
+
+      // ===== Preload รูปเฉพาะด่านที่เลือก ขณะรอ countdown =====
+      (function preloadLevelImages(lv){
+        const urls = new Set();
+        if (lv === 1) {
+          // ด่าน 1: สัตว์ที่มีวัฏจักรชีวิต 3 ระยะ
+          LIFECYCLE_3STEP.animals.forEach(a => {
+            for (let i = 1; i <= LIFECYCLE_3STEP.stageNames.length; i++){
+              urls.add(`${LIFECYCLE_3STEP.folder}/${a.key}${i}.png`);
+            }
+          });
+        } else if (lv === 2) {
+          // ด่าน 2 (ใหม่): สัตว์ที่มีวัฏจักรชีวิต 4 ระยะ
+          LIFECYCLE_4STEP.animals.forEach(a => {
+            for (let i = 1; i <= LIFECYCLE_4STEP.stageNames.length; i++){
+              urls.add(`${LIFECYCLE_4STEP.folder}/${a.key}${i}.png`);
+            }
+          });
+        } else if (lv === 3) {
+          // ด่าน 3 ใช้แค่ตัวเลือกข้อความ ไม่มีรูปตัวเลือก
+        } else if (lv === 4) {
+          if (typeof MATERIAL_IMG !== "undefined") {
+            Object.values(MATERIAL_IMG).forEach(src => { if(src) urls.add(src); });
+          }
+          if (typeof LEVEL4_BANK !== "undefined") {
+            LEVEL4_BANK.forEach(q => (q.answers||[]).forEach(a => { if(a && a.img) urls.add(a.img); }));
+          }
+        }
+        const list = [...urls].filter(Boolean);
+        // preloadOne มี cache ไว้แล้ว จะข้ามรูปที่โหลดไปแล้ว
+        list.forEach(src => preloadOne(src));
+        if (list.length) console.log(`🎯 level ${lv} targeted preload:`, list.length, 'images');
+      })(window.currentLevel);
+    });
+  });
+
+  document.getElementById('guideBtn')?.addEventListener('click', ()=>{ landing.classList.add('hide'); guideScreen.style.display='flex' });
+  document.getElementById('guideBack')?.addEventListener('click', ()=>{ guideScreen.style.display='none'; landing.classList.remove('hide') });
+
+// เริ่มเกม + นับถอยหลัง 3..2..1
+let countdownItv=null; // ← ของเดิมมีอยู่ ให้ลบหรือคอมเมนต์ทิ้งไป
+
+// === ใส่ของใหม่แทน ===
+window.__countdownItv = null;
+function clearCountdown(){
+  if(window.__countdownItv){
+    clearInterval(window.__countdownItv);
+    window.__countdownItv = null;
+  }
+  countdownEl.style.display='none'; countdownEl.textContent='3';
+  startBtn.style.display='inline-block'; startBtn.disabled=false; startBtn.style.pointerEvents='auto';
+}
+function runCountdown(){
+  startBtn.disabled=true; startBtn.style.pointerEvents='none'; startBtn.style.display='none';
+  let n=3; countdownEl.textContent=n; countdownEl.style.display='block';
+  window.__countdownItv = setInterval(()=>{
+    n--;
+    if(n>0){ countdownEl.textContent=n; }
+    else{ clearCountdown(); startScreen.style.display='none'; startGame(); }
+  },1000);
+}
+
+  startBtn.addEventListener('click', ()=>{ runCountdown(); });
+})();
+
+// =========================
+// Visibility Pause
+// =========================
+let wasRunning=false;
+function uiBlockingOpen(){
+  const landing=document.getElementById('landing');
+  const startOpen = (document.getElementById('startScreen').style.display!=='none');
+  const guide=document.getElementById('guideScreen');
+  const guideOpen = getComputedStyle(guide).display!=='none';
+  const overlayOpen = overlay.style.visibility==='visible';
+  return overlayOpen || (!landing.classList.contains('hide')) || startOpen || guideOpen;
+}
+function handleHidden(){ wasRunning = running && !ended && !uiBlockingOpen(); if(wasRunning) { paused=true; pauseGameTimer(); } }
+function handleVisible(){ if(wasRunning && paused && !ended && !uiBlockingOpen()){ paused=false; resumeGameTimer(); } wasRunning=false }
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) handleHidden(); else handleVisible() });
+window.addEventListener('blur', handleHidden); window.addEventListener('focus', handleVisible);
+
+})();
+</script>
+
+<!-- ===== คำสั่งเสียง (คงไว้) ===== -->
+<script>
+(function(){
+  const micBtn = document.getElementById('micBtn'); if(!micBtn) return;
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ micBtn.textContent='🎤 ไม่รองรับ'; micBtn.disabled=true; return }
+  const rec = new SR(); rec.lang='th-TH'; rec.continuous=true; rec.interimResults=true;
+  function tokensFrom(s){ s=(s||'').toLowerCase().trim(); s=s.replace(/\s*(ค่ะ|ครับ|คะ|ฮะ)$/,''); return s.split(/[\s,，。\.!?:;、]+/).filter(Boolean) }
+  function currentOptionsMap(){ const map=new Map(); document.querySelectorAll('.option').forEach(n=>{ const t=(n.getAttribute('alt')||n?.querySelector('img')?.alt||'').trim().toLowerCase(); if(!map.has(t)) map.set(t,[]); map.get(t).push(n) }); return map }
+  function pickNearest(arr){ return arr[0] }
+  function tryFire(phrase){ const toks=tokensFrom(phrase); if(!toks.length) return false; const cmap=currentOptionsMap(); for(const t of toks){ if(cmap.has(t)){ const node = pickNearest(cmap.get(t)); node?.click(); return true } } return false }
+  rec.onresult=(e)=>{ for(let i=e.resultIndex;i<e.results.length;i++){ const r=e.results[i]; const txt=(r[0]?.transcript||'').trim(); if(!txt) continue; tryFire(txt) } };
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js"></script>
+
+<!-- ===== กล้อง (มือเป็นวงกลมแตะเลือกช้อยส์) ===== -->
+<script type="module">
+import {PoseLandmarker, FilesetResolver} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3";
+const camBtn = document.getElementById('camBtn');
+const video  = document.getElementById('cameraMirror');
+
+const personCvs = document.getElementById('personCanvas');
+const personCtx = personCvs.getContext('2d', { alpha: true });
+
+const cvs    = document.getElementById('camCanvas');
+const ctx    = cvs.getContext('2d', { alpha: true });
+const DETECT_W = 320;
+let detectCanvas = document.createElement('canvas');
+let detectCtx = detectCanvas.getContext('2d', { alpha:false, desynchronized:true });
+let CAM_ON=false, landmarker=null, raf=0, stream=null;
+let selfieSegmentation=null;
+let segmentBusy=false;
+let lastSegAt=0;
+const SEGMENT_FPS=24;
+
+function fitPersonCanvas(){
+  const dpr = 1;
+  personCvs.width = Math.round(innerWidth * dpr);
+  personCvs.height = Math.round(innerHeight * dpr);
+  personCvs.style.width = innerWidth + 'px';
+  personCvs.style.height = innerHeight + 'px';
+  personCtx.setTransform(1,0,0,1,0,0);
+  personCtx.scale(dpr,dpr);
+}
+
+async function ensureSelfieSegmentation(){
+  if (selfieSegmentation) return selfieSegmentation;
+
+  selfieSegmentation = new SelfieSegmentation({
+    locateFile: (file) =>
+      `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+  });
+
+selfieSegmentation.setOptions({
+  modelSelection: 1,
+  selfieMode: false
+});
+
+  selfieSegmentation.onResults(drawSegmentedPerson);
+  return selfieSegmentation;
+}
+
+function drawCoverMirrored(ctx2, source, sx, sy, sw, sh, dx, dy, dw, dh){
+  ctx2.save();
+
+  // mirror ให้เหมือน cameraMirror เดิม
+  ctx2.translate(dx + dw, dy);
+  ctx2.scale(-1, 1);
+
+  ctx2.drawImage(
+    source,
+    sx, sy, sw, sh,
+    0, 0, dw, dh
+  );
+
+  ctx2.restore();
+}
+
+function drawSegmentedPerson(results){
+  const {sX, sY, sW, sH, sw, sh} = coverCropRect();
+
+  personCtx.save();
+
+  // รีเซ็ต composite ก่อนทุกเฟรม กันภาพเพี้ยนสะสม
+  personCtx.globalCompositeOperation = 'source-over';
+  personCtx.clearRect(0, 0, sw, sh);
+
+  // 1) วาด mask โดยใช้ crop เดียวกับภาพกล้อง
+  drawCoverMirrored(
+    personCtx,
+    results.segmentationMask,
+    sX, sY, sW, sH,
+    0, 0, sw, sh
+  );
+
+  // 2) ให้แสดงเฉพาะพื้นที่คน
+  personCtx.globalCompositeOperation = 'source-in';
+
+  // 3) วาดภาพจริง โดยใช้ crop เดียวกับ mask 100%
+  drawCoverMirrored(
+    personCtx,
+    results.image,
+    sX, sY, sW, sH,
+    0, 0, sw, sh
+  );
+
+  personCtx.globalCompositeOperation = 'source-over';
+  personCtx.restore();
+}
+
+async function updateSegmentedPerson(now){
+  if (!selfieSegmentation || segmentBusy) return;
+  if (now - lastSegAt < 1000 / SEGMENT_FPS) return;
+
+  lastSegAt = now;
+  segmentBusy = true;
+
+  try{
+    await selfieSegmentation.send({ image: video });
+  }catch(e){}
+
+  segmentBusy = false;
+}
+
+// ===== ปุ่มที่ให้มือแตะได้ในด่าน 1 =====
+const arQDecor = document.getElementById('qDecor');
+const arFastNext = document.getElementById('fastNext');
+const arViewerPrev = document.getElementById('viewerPrev');
+const arViewerNext = document.getElementById('viewerNext');
+const arPlanetInfoToggleBtn = document.getElementById('planetInfoToggleBtn');
+const arPlanetInfoButtons = document.getElementById('planetInfoButtons');
+const arPlanetInfoClose = document.getElementById('planetInfoClose');
+const arPlanetInfoModal = document.getElementById('planetInfoModal');
+
+function fitCanvas(){
+  const dpr = CAM_ON? 1 : Math.max(1, window.devicePixelRatio||1);
+  cvs.width=Math.round(innerWidth*dpr);
+  cvs.height=Math.round(innerHeight*dpr);
+  cvs.style.width=innerWidth+'px';
+  cvs.style.height=innerHeight+'px';
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.scale(dpr,dpr);
+
+  fitPersonCanvas();
+}
+fitCanvas(); addEventListener('resize', fitCanvas);
+
+function coverCropRect(){ const vw=video.videoWidth||640, vh=video.videoHeight||480; const sw=innerWidth, sh=innerHeight; const scale=Math.max(sw/vw, sh/vh); const sW=Math.round(sw/scale), sH=Math.round(sh/scale); const sX=Math.round((vw-sW)/2), sY=Math.round((vh-sH)/2); return {sX,sY,sW,sH,vw,vh,sw,sh} }
+function mapToScreen(nx,ny){ const {sX,sY,sW,sH,vw,vh,sw,sh} = coverCropRect(); const px=nx*vw, py=ny*vh; const u=(px-sX)/sW, v=(py-sY)/sH; let x=u*sw, y=v*sh; x=sw-x; return {x,y} }
+
+const SHOW_HAND_BALL=false;
+const lastHitAt=new WeakMap();
+const HIT_LOCK_MS=650;
+function circleIntersectsRect(cx,cy,r, rc){ const nx=Math.max(rc.left, Math.min(cx, rc.right)); const ny=Math.max(rc.top, Math.min(cy, rc.bottom)); const dx=cx-nx, dy=cy-ny; return (dx*dx+dy*dy)<=r*r }
+
+function isVisibleForHand(el){
+  if (!el) return false;
+  const st = getComputedStyle(el);
+  const rc = el.getBoundingClientRect();
+
+  return (
+    st.display !== 'none' &&
+    st.visibility !== 'hidden' &&
+    st.pointerEvents !== 'none' &&
+    rc.width > 0 &&
+    rc.height > 0 &&
+    rc.bottom >= 0 &&
+    rc.right >= 0 &&
+    rc.top <= innerHeight &&
+    rc.left <= innerWidth
+  );
+}
+
+function handClick(el){
+  if (!el || !isVisibleForHand(el)) return;
+
+  const t = performance.now();
+  const last = lastHitAt.get(el) || 0;
+  if (t - last < HIT_LOCK_MS) return;
+
+  lastHitAt.set(el, t);
+  el.click();
+}
+
+function hitByCircle(center, r){
+  const targets = [
+    ...document.querySelectorAll('.option.circle'),
+
+    arFastNext,
+
+    // ด่าน 1: ปุ่มเปลี่ยนดาว
+    arViewerPrev,
+    arViewerNext,
+
+    // ด่าน 1: ปุ่มข้อมูลซ้ายล่าง
+    arPlanetInfoToggleBtn,
+
+    // ด่าน 1: ปุ่มข้อมูล 3 ปุ่ม
+    ...document.querySelectorAll('.planet-info-btn'),
+
+    // ด่าน 1: ปุ่มปิดหน้าต่าง
+    arPlanetInfoClose
+  ].filter(Boolean);
+
+  for (const n of targets){
+    if (!isVisibleForHand(n)) continue;
+
+    const rc = n.getBoundingClientRect();
+
+    if (circleIntersectsRect(center.x, center.y, r, rc)){
+      handClick(n);
+      break;
+    }
+  }
+}
+
+async function ensureLandmarker(){ if(landmarker) return landmarker; const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"); landmarker = await PoseLandmarker.createFromOptions(fileset, { baseOptions:{ modelAssetPath:"https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task" }, runningMode:'VIDEO', numPoses:1, minPoseDetectionConfidence:.35, minPosePresenceConfidence:.35, minTrackingConfidence:.35 }); return landmarker }
+function drawHandBall(elbowIdx, wristIdx, lm){ if(!lm[elbowIdx]||!lm[wristIdx]) return null; const elbow = mapToScreen(lm[elbowIdx].x, lm[elbowIdx].y); const wrist = mapToScreen(lm[wristIdx].x, lm[wristIdx].y); const r=24; const L=Math.max(1, Math.hypot(wrist.x-elbow.x, wrist.y-elbow.y)); const ux=(wrist.x-elbow.x)/L, uy=(wrist.y-elbow.y)/L; const HAND_PUSH=1.5, PUSH_PX=6; const center={ x: wrist.x + ux*(r*HAND_PUSH+PUSH_PX), y: wrist.y + uy*(r*HAND_PUSH+PUSH_PX) }; if(SHOW_HAND_BALL){ ctx.beginPath(); ctx.arc(center.x,center.y,r,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill(); ctx.lineWidth=3; ctx.strokeStyle='#fff'; ctx.stroke(); } hitByCircle(center, r*.95); return center }
+function drawPoseAndColliders(res){ const sw=innerWidth, sh=innerHeight; ctx.clearRect(0,0,sw,sh); if(!res?.landmarks?.length) return; const lm=res.landmarks[0]; drawHandBall(13,15,lm); drawHandBall(14,16,lm) }
+
+function runLoop(){
+  const step=()=>{
+    if(!video.videoWidth){
+      raf=requestAnimationFrame(step);
+      return;
+    }
+
+    const now=performance.now();
+
+    try{
+      // วาดเฉพาะคนลง personCanvas
+      updateSegmentedPerson(now);
+
+      // ระบบสัมผัสมือเดิม ไม่แตะต้อง
+      const {sX,sY,sW,sH}=coverCropRect();
+      detectCtx.drawImage(video, sX,sY,sW,sH, 0,0, detectCanvas.width, detectCanvas.height);
+      const res=landmarker.detectForVideo(detectCanvas, now);
+      drawPoseAndColliders(res);
+    }catch(e){}
+
+    raf=requestAnimationFrame(step);
+  };
+
+  raf=requestAnimationFrame(step);
+}
+
+async function startCamera(){
+  await ensureLandmarker();
+  await ensureSelfieSegmentation();
+
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { width: 960, height: 540, frameRate: 30, facingMode: 'user' },
+    audio: false
+  });
+
+  video.srcObject=stream;
+  await video.play().catch(()=>{});
+
+  const vw=video.videoWidth||640, vh=video.videoHeight||480;
+  const ratio=vw/vh;
+  detectCanvas.width=DETECT_W;
+  detectCanvas.height=Math.round(DETECT_W/ratio);
+
+  // เปิด video ไว้เป็นต้นทาง แต่ซ่อนภาพเดิม
+  video.style.display='block';
+  video.style.opacity='0';
+
+  // แสดงเฉพาะคนหลังตัดพื้นหลัง
+  personCvs.style.display='block';
+
+  // canvas มือยังทำงานเหมือนเดิม
+  cvs.style.display='block';
+
+  camBtn.textContent='📷 กล้อง: เปิด';
+  CAM_ON=true;
+  fitCanvas();
+  runLoop();
+}
+
+function stopCamera(){
+  cancelAnimationFrame(raf);
+
+  if(stream){
+    stream.getTracks().forEach(t=>t.stop());
+    stream=null;
+  }
+
+  try{ video.pause(); }catch(e){}
+
+  video.removeAttribute('srcObject');
+  video.style.display='none';
+  video.style.opacity='0';
+
+  personCvs.style.display='none';
+  personCtx.clearRect(0,0,innerWidth,innerHeight);
+
+  cvs.style.display='none';
+  ctx.clearRect(0,0,innerWidth,innerHeight);
+
+  camBtn.textContent='📷 กล้อง: ปิด';
+  CAM_ON=false;
+  fitCanvas();
+}
+
+camBtn.addEventListener('click', async ()=>{ if(!stream){ try{ await startCamera() }catch(err){ camBtn.textContent='📷 กล้อง: ไม่ได้รับอนุญาต'; camBtn.disabled=true } } else { stopCamera() } });
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden && stream) stopCamera() });
+
+
+// ===== fitTextOneLine (global helper ใช้ใน spawnLevel3Choice2) =====
+function fitTextOneLine(el, maxSize = 72, minSize = 20){
+  let size = maxSize;
+  el.style.fontSize = size + 'px';
+
+  while(el.scrollWidth > el.clientWidth && size > minSize){
+    size -= 2;
+    el.style.fontSize = size + 'px';
+  }
+}
+
+// (ระบบ preload หลักอยู่ใน runGlobalPreload ที่ผูกกับ window 'load' แล้ว
+//  ไม่ต้องมี IIFE ซ้ำที่นี่ เพราะทำให้โหลดภาพซ้ำและ __ALL_IMAGES_READY__ เด้งก่อนกำหนด)
+
+</script>
+
+<!-- ===== Preload Overlay ===== -->
+<div id="preloadOverlay">
+  <div id="preloadText" style="font-size:20px">กำลังเตรียมข้อมูล… 0%</div>
+  <div style="width:min(80vw,480px); height:10px; background:#ffffff22; border-radius:999px; overflow:hidden">
+    <div id="preloadBar" style="height:100%; width:0%; background:#10b981"></div>
+  </div>
+  <div style="font-size:12px;opacity:.8">...รอสักครู่...</div>
+</div>
+<div id="flashOverlay" aria-hidden="true"></div>
+<div id="emojiMeteorLayer" aria-hidden="true"></div>
+</body>
+</html>
